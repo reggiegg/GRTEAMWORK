@@ -46,8 +46,8 @@
     [(? number?) (num sexp)]
     [(list '+ lexp rexp) (add (parse lexp) (parse rexp))]
     [(list '- lexp rexp) (sub (parse lexp) (parse rexp))]
-    [(list 'with (list (and (? valid-identifier?) id) binding-expr) body-expr)
-     (with id (parse binding-expr) (parse body-expr))]
+    [(list 'with bind body-expr)
+     (with (binding (first bind) (parse (second bind)))(parse body-expr))]
     [else (error 'parse "unable to parse the s-expression ~s" sexp)]))
 
 
@@ -131,7 +131,7 @@
 (test/exn (parse '{with {x "foo"} x}) "")
 (test/exn (parse '{with {x 1} "foo"}) "")
 
-#|
+
 
 ;; Test each type of expression.
 ;; Note: no need for complicated recursive expressions to verify that
@@ -142,9 +142,11 @@
 
 (test (parse '1) (num 1))
 (test (parse 'x) (id 'x))
-(test (parse '{+ 1 1}) (binop + (num 1) (num 1)))
+;(test (parse '{+ 1 1}) (binop + (num 1) (num 1)))
 (test (parse '{with {x 1} x}) (with (binding 'x (num 1)) (id 'x)))
 
+
+#|
 ; One extra with test, because it might be handy in interp.
 (test (parse '{with {x 1} {with {x 2} x}}) 
       (with (binding 'x (num 1)) (with (binding 'x (num 2)) (id 'x))))
