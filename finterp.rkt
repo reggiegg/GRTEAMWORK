@@ -47,17 +47,57 @@
     [(list '+ lexp rexp) (add (parse lexp) (parse rexp))]
     [(list '- lexp rexp) (sub (parse lexp) (parse rexp))]
     [(list 'with bind body-expr)
-     (with (binding (first bind) (parse (second bind)))(parse body-expr))]
+     (with (binding (first bind)(parse (second bind)))(parse body-expr))]
     [else (error 'parse "unable to parse the s-expression ~s" sexp)]))
 
+; subst : WAE symbol WAE -> WAE
+;; substitute the val-expr for all FREE instances of id in the body
+(define (subst val-expr i body)
+  (type-case WAE body
+    [num (n) body]
+    [add (lhs rhs) (add (subst val-expr i lhs)
+                        (subst val-expr i rhs))]
+    [sub (lhs rhs) (sub (subst val-expr i lhs)
+                        (subst val-expr i rhs))]
+    [with (bind b-e)
+          ;; Check whether there are free instances
+          ;; in the body at all (which there aren't
+          ;; if i-with matches i!).
+          (if (symbol=? (binding-name bind) i)
+              (with (binding-name bind)
+                    (subst val-expr i (binding-named-expr bind))
+                    b-e)
+              (with (binding-name bind)
+                    (subst val-expr i (binding-named-expr bind))
+                    (subst val-expr i b-e)))]
+    [id (name) (if (symbol=? name i)
+                   val-expr
+                   body)]))
+
+(test (subst (num 5) 'x (num 0)) (num 0))
+(test (subst (num 5) 'x (id 'x)) (num 5))
+(test (subst (num 5) 'x (id 'y)) (id 'y))
+(test (subst (num 5) 'x (add (id 'x) (id 'x))) (add (num 5) (num 5)))
+(test (subst (num 5) 'x (sub (id 'x) (id 'x))) (sub (num 5) (num 5)))
+(test (subst (num 5) 'x (with 'y (num 10) (add (id 'x) (id 'y))))
+      (with 'y (num 10) (add (num 5) (id 'y))))
+(test (subst (num 5) 'x (with 'y (add (id 'x) (num 1)) (add (id 'x) (id 'y))))
+      (with 'y (add (num 5) (num 1)) (add (num 5) (id 'y))))
 
 ;; interp : WAE -> number
 ;; Consumes a WAE representation of an expression and computes
 ;; the corresponding numerical result
 (define (interp expr)
-  0)
-
-
+  (type-case WAE expr
+    [num (n) n]
+    [add (l r) (+ (interp l) (interp r))]
+    [sub (l r) (- (interp l) (interp r))]
+    [with (bind body) 
+          (interp (subst (binding-name bind)
+                         (binding-named-expr bind)
+                         body))]
+    [id (name)
+        (error 'interp "Unbound identifier ~s." name)]))
 
 
 ;; Here are some test cases to get you started!
