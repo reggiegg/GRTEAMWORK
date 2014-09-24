@@ -47,8 +47,16 @@
     [(list '+ lexp rexp) (add (parse lexp) (parse rexp))]
     [(list '- lexp rexp) (sub (parse lexp) (parse rexp))]
     [(list 'with bind body-expr)
-     (with (binding (first bind)(parse (second bind)))(parse body-expr))]
+     (if (valid-bind? bind)
+         (with (binding (first bind)(parse (second bind)))(parse body-expr))
+         (error 'parse "wrong number of binding args"))]
     [else (error 'parse "unable to parse the s-expression ~s" sexp)]))
+
+;; valid-bind? : listOfSymbol -> Boolean
+;; produce true if correctly formed binding
+(define (valid-bind? bind)
+  (and (= 2 (length bind))
+       (valid-identifier? (first bind))))
 
 ; subst : WAE symbol WAE -> WAE
 ;; substitute the val-expr for all FREE instances of id in the body
@@ -64,11 +72,11 @@
           ;; in the body at all (which there aren't
           ;; if i-with matches i!).
           (if (symbol=? (binding-name bind) i)
-              (with (binding-name bind)
-                    (subst val-expr i (binding-named-expr bind))
+              (with (binding (binding-name bind)
+                             (subst val-expr i (binding-named-expr bind)))
                     b-e)
-              (with (binding-name bind)
-                    (subst val-expr i (binding-named-expr bind))
+              (with (binding (binding-name bind)
+                             (subst val-expr i (binding-named-expr bind)))
                     (subst val-expr i b-e)))]
     [id (name) (if (symbol=? name i)
                    val-expr
@@ -79,10 +87,10 @@
 (test (subst (num 5) 'x (id 'y)) (id 'y))
 (test (subst (num 5) 'x (add (id 'x) (id 'x))) (add (num 5) (num 5)))
 (test (subst (num 5) 'x (sub (id 'x) (id 'x))) (sub (num 5) (num 5)))
-(test (subst (num 5) 'x (with 'y (num 10) (add (id 'x) (id 'y))))
-      (with 'y (num 10) (add (num 5) (id 'y))))
-(test (subst (num 5) 'x (with 'y (add (id 'x) (num 1)) (add (id 'x) (id 'y))))
-      (with 'y (add (num 5) (num 1)) (add (num 5) (id 'y))))
+(test (subst (num 5) 'x (with (binding 'y (num 10)) (add (id 'x)(id 'y))))
+      (with (binding 'y (num 10)) (add (num 5) (id 'y))))
+(test (subst (num 5) 'x (with (binding 'y (add (id 'x) (num 1))) (add (id 'x) (id 'y))))
+      (with (binding 'y (add (num 5) (num 1))) (add (num 5) (id 'y))))
 
 ;; interp : WAE -> number
 ;; Consumes a WAE representation of an expression and computes
@@ -125,11 +133,10 @@
            (num 4)))
 
 ;; With binding
-(test (parse '{with {x 1} x}) (with 'x (num 1) (id 'x)))
+(test (parse '{with {x 1} x}) (with (binding 'x (num 1)) (id 'x)))
 
 (test (parse '{with {x {with {y 2} {+ x y}}} {with {z 3} {+ x z}}})
-      (with 'x (with 'y (num 2) (add (id 'x) (id 'y)))
-            (with 'z (num 3) (add (id 'x) (id 'z)))))
+      (with (binding 'x (with (binding 'y (num 2)) (add (id 'x) (id 'y)))) (with (binding 'z (num 3)) (add (id 'x) (id 'z)))))
 
 ;; Error checking
 
