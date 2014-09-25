@@ -5,24 +5,33 @@
 
 (define-type WAE
   [num (n number?)]
-  [add (lhs WAE?)    
-       (rhs WAE?)]
-  [sub (lhs WAE?)
-       (rhs WAE?)]
-  #;[binop (op procedure?) (lhs WAE?) (rhs WAE?)]
+;  [add (lhs WAE?)    
+;       (rhs WAE?)]
+;  [sub (lhs WAE?)
+;       (rhs WAE?)]
+  [binop (op procedure?) (lhs WAE?) (rhs WAE?)]
   [with (b Binding?) (body WAE?)]
   #;[with* (lob (listof Binding?)) (body WAE?)]
   [id (name symbol?)])
 
 ;; list of reserved symbols
-(define *reserved-symbols* '(+ - with))
+(define *reserved-symbols* '(with))
+
+;; hash
+(define *proctable* (hash '+ + '- - '/ / '* *))
+
+;; op-to-proc : symbol -> procedure
+(define (op-to-proc op)
+  (hash-ref *proctable* op))
+
 
 ;; valid-identifier? : any -> boolean
 ;; Determines whether the parameter is valid as an identifier name, i.e.,
 ;; a symbol that is not reserved.
 (define (valid-identifier? sym)
   (and (symbol? sym)
-       (not (member sym *reserved-symbols*))))
+       (and (not (member sym *reserved-symbols*))
+            (not (member sym (sequence->list (in-hash-keys *proctable*)))))))
 
 ;; Reserved symbols.
 (test (valid-identifier? '+) false)
@@ -38,14 +47,38 @@
 (test (valid-identifier? 'id) true)
 (test (valid-identifier? 'x) true)
 
+
+
+;; valid-binop? : any -> boolean
+;; Determines whether the operator given is valid as a binary operator
+(define (valid-binop? op)
+  (and (symbol? op)
+       (not (not (member op (sequence->list (in-hash-keys *proctable*)))))))
+
+;; OK
+(test (valid-binop? '+) true)
+(test (valid-binop? '-) true)
+(test (valid-binop? '/) true)
+
+;; Not a symbol
+(test (valid-binop? '8) false)
+(test (valid-binop? '{+ 1 2}) false)
+
+;; Other operators
+(test (valid-binop? 'with) false)
+
+
+
 ;; parse : s-exp -> WAE
 ;; Consumes an s-expression and generates the corresponding WAE
 (define (parse sexp)
   (match sexp
     [(? valid-identifier?) (id sexp)]
     [(? number?) (num sexp)]
-    [(list '+ lexp rexp) (add (parse lexp) (parse rexp))]
-    [(list '- lexp rexp) (sub (parse lexp) (parse rexp))]
+;    [(list '+ lexp rexp) (add (parse lexp) (parse rexp))]
+;    [(list '- lexp rexp) (sub (parse lexp) (parse rexp))]
+    [(list (and (? valid-binop?) op) lexp rexp)
+     (binop (op-to-proc op) (parse lexp)(parse rexp))]
     [(list 'with bind body-expr)
      (if (valid-bind? bind)
          (with (binding (first bind)(parse (second bind)))(parse body-expr))
@@ -57,6 +90,8 @@
 (define (valid-bind? bind)
   (and (= 2 (length bind))
        (valid-identifier? (first bind))))
+
+#|
 
 ; subst : WAE symbol WAE -> WAE
 ;; substitute the val-expr for all FREE instances of id in the body
@@ -185,11 +220,14 @@
 ;; you're descending into the appropriate sub-exprs, since even numbers
 ;; and symbols must be parsed.  (Unless you believe for some reason you're
 ;; only descending "one level down".)
-
+|#
 
 (test (parse '1) (num 1))
 (test (parse 'x) (id 'x))
-;(test (parse '{+ 1 1}) (binop + (num 1) (num 1)))
+(test (parse '{+ 1 1}) (binop + (num 1) (num 1)))
+(test (parse '{- 2 1}) (binop - (num 2) (num 1)))
+(test (parse '{* 1 5}) (binop * (num 1) (num 5)))
+(test/exn (parse '{- 2 1 4}) "")
 (test (parse '{with {x 1} x}) (with (binding 'x (num 1)) (id 'x)))
 
 
@@ -221,13 +259,28 @@
 ;; and it already has sufficient test cases for us to be confident about its
 ;; behaviour.
 
-|#
+
 
 ;;; A few--too few!--interp tests.
 
 (test (interp (num 100)) 100)
 (test (interp (parse '{+ 1 2})) 3)
 (test (interp (parse '{with {x 1} x})) 1)
+(test (interp (parse '{with {x 5} 0})) 0)
+(test (interp (parse '{with {x 5} x})) 5)
+(test (interp (parse '{with {x {+ 1 2}} x})) 3)
+(test (interp (parse '{with {x 5} {+ x x}})) 10)
+(test (interp (parse '{with {x 5} {with {y 10} {+ x y}}})) 15)
+(test (interp (parse '{with {x 5} {with {y {+ x 1}} {+ x y}}})) 11)
+(test/exn (interp (parse '{with {x x} x})) "")
+(test/exn (interp (parse '{with {x 5} {with {y {+ y 1}} {+ x y}}})) "")
+(test (interp (parse '{with {x 5} {with {x 6} {+ x x}}})) 12)
+(test (interp (parse '{with {x 5} {with {x {+ x 1}} {+ x x}}})) 12)
+
+(test/exn (interp (parse 'x)) "")
+(test/exn (interp (parse 'lambda-bound)) "")
+
+|#
 
 
 
