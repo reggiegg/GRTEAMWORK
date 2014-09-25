@@ -100,9 +100,9 @@
     [num (n) n]
     [add (l r) (+ (interp l) (interp r))]
     [sub (l r) (- (interp l) (interp r))]
-    [with (bind body) 
-          (interp (subst (binding-name bind)
-                         (binding-named-expr bind)
+    [with (bind body)
+          (interp (subst (num (interp (binding-named-expr bind)))
+                         (binding-name bind)
                          body))]
     [id (name)
         (error 'interp "Unbound identifier ~s." name)]))
@@ -221,7 +221,7 @@
 ;; and it already has sufficient test cases for us to be confident about its
 ;; behaviour.
 
-
+|#
 
 ;;; A few--too few!--interp tests.
 
@@ -229,7 +229,7 @@
 (test (interp (parse '{+ 1 2})) 3)
 (test (interp (parse '{with {x 1} x})) 1)
 
-|#
+
 
 
 
