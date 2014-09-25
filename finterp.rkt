@@ -91,17 +91,20 @@
   (and (= 2 (length bind))
        (valid-identifier? (first bind))))
 
-#|
+
 
 ; subst : WAE symbol WAE -> WAE
 ;; substitute the val-expr for all FREE instances of id in the body
 (define (subst val-expr i body)
   (type-case WAE body
     [num (n) body]
-    [add (lhs rhs) (add (subst val-expr i lhs)
-                        (subst val-expr i rhs))]
-    [sub (lhs rhs) (sub (subst val-expr i lhs)
-                        (subst val-expr i rhs))]
+    [binop (op lhs rhs)
+           (binop op (subst val-expr i lhs)
+                  (subst val-expr i rhs))]
+;    [add (lhs rhs) (add (subst val-expr i lhs)
+;                        (subst val-expr i rhs))]
+;    [sub (lhs rhs) (sub (subst val-expr i lhs)
+;                        (subst val-expr i rhs))]
     [with (bind b-e)
           ;; Check whether there are free instances
           ;; in the body at all (which there aren't
@@ -120,12 +123,13 @@
 (test (subst (num 5) 'x (num 0)) (num 0))
 (test (subst (num 5) 'x (id 'x)) (num 5))
 (test (subst (num 5) 'x (id 'y)) (id 'y))
-(test (subst (num 5) 'x (add (id 'x) (id 'x))) (add (num 5) (num 5)))
-(test (subst (num 5) 'x (sub (id 'x) (id 'x))) (sub (num 5) (num 5)))
-(test (subst (num 5) 'x (with (binding 'y (num 10)) (add (id 'x)(id 'y))))
-      (with (binding 'y (num 10)) (add (num 5) (id 'y))))
-(test (subst (num 5) 'x (with (binding 'y (add (id 'x) (num 1))) (add (id 'x) (id 'y))))
-      (with (binding 'y (add (num 5) (num 1))) (add (num 5) (id 'y))))
+(test (subst (num 5) 'x (binop + (id 'x) (id 'x))) (binop + (num 5) (num 5)))
+(test (subst (num 5) 'x (binop - (id 'x) (id 'x))) (binop - (num 5) (num 5)))
+(test (subst (num 5) 'x (with (binding 'y (num 10)) (binop + (id 'x)(id 'y))))
+      (with (binding 'y (num 10)) (binop + (num 5) (id 'y))))
+(test (subst (num 5) 'x (with (binding 'y (binop + (id 'x) (num 1))) (binop + (id 'x) (id 'y))))
+      (with (binding 'y (binop + (num 5) (num 1))) (binop + (num 5) (id 'y))))
+
 
 ;; interp : WAE -> number
 ;; Consumes a WAE representation of an expression and computes
@@ -133,8 +137,9 @@
 (define (interp expr)
   (type-case WAE expr
     [num (n) n]
-    [add (l r) (+ (interp l) (interp r))]
-    [sub (l r) (- (interp l) (interp r))]
+    [binop (op l r) (op (interp l) (interp r))]
+;    [add (l r) (+ (interp l) (interp r))]
+;    [sub (l r) (- (interp l) (interp r))]
     [with (bind body)
           (interp (subst (num (interp (binding-named-expr bind)))
                          (binding-name bind)
@@ -143,8 +148,10 @@
         (error 'interp "Unbound identifier ~s." name)]))
 
 
-;; Here are some test cases to get you started!
 
+
+#|
+;; Here are some test cases to get you started!
 
 ;;; parse tests
 
@@ -259,6 +266,7 @@
 ;; and it already has sufficient test cases for us to be confident about its
 ;; behaviour.
 
+|#
 
 
 ;;; A few--too few!--interp tests.
@@ -280,7 +288,6 @@
 (test/exn (interp (parse 'x)) "")
 (test/exn (interp (parse 'lambda-bound)) "")
 
-|#
 
 
 
