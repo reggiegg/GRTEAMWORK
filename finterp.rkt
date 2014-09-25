@@ -17,8 +17,22 @@
 ;; list of reserved symbols
 (define *reserved-symbols* '(with))
 
+
+;; div : number number -> number or error
+;; divides first number by the second unless second is 0 where it throws an error
+(define (div l r)
+  (if (= r 0)
+      (error "divide by zero error.")
+      (/ l r)))
+
+(test (div 2 2) 1)
+(test (div 4 2) 2)
+(test/exn (div 3 0) "")
+      
+      
+
 ;; hash
-(define *proctable* (hash '+ + '- - '/ / '* *))
+(define *proctable* (hash '+ + '- - '/ div '* *))
 
 ;; op-to-proc : symbol -> procedure
 (define (op-to-proc op)
@@ -273,11 +287,14 @@
 
 (test (interp (num 100)) 100)
 (test (interp (parse '{+ 1 2})) 3)
+(test (interp (parse '{/ 4 2})) 2)
+(test/exn (interp (parse '{/ 1 0})) "")
 (test (interp (parse '{with {x 1} x})) 1)
 (test (interp (parse '{with {x 5} 0})) 0)
 (test (interp (parse '{with {x 5} x})) 5)
 (test (interp (parse '{with {x {+ 1 2}} x})) 3)
 (test (interp (parse '{with {x 5} {+ x x}})) 10)
+(test (interp (parse '{with {x 5} {* x x}})) 25)
 (test (interp (parse '{with {x 5} {with {y 10} {+ x y}}})) 15)
 (test (interp (parse '{with {x 5} {with {y {+ x 1}} {+ x y}}})) 11)
 (test/exn (interp (parse '{with {x x} x})) "")
