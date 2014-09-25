@@ -11,7 +11,7 @@
 ;       (rhs WAE?)]
   [binop (op procedure?) (lhs WAE?) (rhs WAE?)]
   [with (b Binding?) (body WAE?)]
-  #;[with* (lob (listof Binding?)) (body WAE?)]
+  [with* (lob (listof Binding?)) (body WAE?)]
   [id (name symbol?)])
 
 ;; list of reserved symbols
@@ -25,13 +25,16 @@
       (error "divide by zero error.")
       (/ l r)))
 
+;; regular divisions
 (test (div 2 2) 1)
 (test (div 4 2) 2)
+
+;; divide by zero
 (test/exn (div 3 0) "")
       
       
 
-;; hash
+;; hash table for procedures 
 (define *proctable* (hash '+ + '- - '/ div '* *))
 
 ;; op-to-proc : symbol -> procedure
@@ -81,8 +84,6 @@
 ;; Other operators
 (test (valid-binop? 'with) false)
 
-
-
 ;; parse : s-exp -> WAE
 ;; Consumes an s-expression and generates the corresponding WAE
 (define (parse sexp)
@@ -97,6 +98,13 @@
      (if (valid-bind? bind)
          (with (binding (first bind)(parse (second bind)))(parse body-expr))
          (error 'parse "wrong number of binding args"))]
+    [(list 'with* bindings body-expr)
+     (if (andmap valid-bind? bindings)
+         (with* (map (λ (b)
+                       (binding (first b)
+                                (parse (second b)))) bindings)
+                (parse body-expr))
+         (error 'parse "binding list is erroneous."))]
     [else (error 'parse "unable to parse the s-expression ~s" sexp)]))
 
 ;; valid-bind? : listOfSymbol -> Boolean
@@ -145,6 +153,8 @@
       (with (binding 'y (binop + (num 5) (num 1))) (binop + (num 5) (id 'y))))
 
 
+#|
+
 ;; interp : WAE -> number
 ;; Consumes a WAE representation of an expression and computes
 ;; the corresponding numerical result
@@ -161,7 +171,7 @@
     [id (name)
         (error 'interp "Unbound identifier ~s." name)]))
 
-
+|#
 
 
 #|
@@ -250,6 +260,9 @@
 (test (parse '{* 1 5}) (binop * (num 1) (num 5)))
 (test/exn (parse '{- 2 1 4}) "")
 (test (parse '{with {x 1} x}) (with (binding 'x (num 1)) (id 'x)))
+(test (parse '{with* {} 4}) (with* '() (num 4)))
+(test (parse '{with* {{x 1}} 4}) (with* (list (binding 'x (num 1))) (num 4)))
+(test (parse '{with* {{x 1} {y 2}} x}) (with* (list (binding 'x (num 1))(binding 'y (num 2))) (id 'x)))
 
 
 #|
@@ -280,7 +293,6 @@
 ;; and it already has sufficient test cases for us to be confident about its
 ;; behaviour.
 
-|#
 
 
 ;;; A few--too few!--interp tests.
@@ -315,3 +327,5 @@
 ;; about fishing, and so he and half the class named a variable
 ;; "catch" and spent hours debugging novice-incomprehensible error
 ;; messages as a result.
+
+|#
