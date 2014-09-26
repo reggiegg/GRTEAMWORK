@@ -17,12 +17,11 @@
 ;; list of reserved symbols
 (define *reserved-symbols* '(with with*))
 
-
 ;; div : number number -> number or error
 ;; divides first number by the second unless second is 0 where it throws an error
 (define (div l r)
   (if (= r 0)
-      (error "divide by zero error.")
+      (error 'div "divide by zero error.")
       (/ l r)))
 
 ;; regular divisions
@@ -32,14 +31,20 @@
 ;; divide by zero
 (test/exn (div 3 0) "")
 
-
-
 ;; hash table for procedures 
 (define *proctable* (hash '+ + '- - '/ div '* *))
 
 ;; op-to-proc : symbol -> procedure
+;; converts an operator symbol to its associated procedure
 (define (op-to-proc op)
-  (hash-ref *proctable* op))
+  (if (hash-has-key? *proctable* op)
+      (hash-ref *proctable* op)
+      (error 'op-to-proc "Not a valid operator")))
+
+;; recognized op
+(test (op-to-proc '+) +)
+;; invalid op
+(test/exn (op-to-proc '&) "")
 
 
 ;; valid-identifier? : any -> boolean
@@ -90,8 +95,6 @@
   (match sexp
     [(? valid-identifier?) (id sexp)]
     [(? number?) (num sexp)]
-    ;    [(list '+ lexp rexp) (add (parse lexp) (parse rexp))]
-    ;    [(list '- lexp rexp) (sub (parse lexp) (parse rexp))]
     [(list (and (? valid-binop?) op) lexp rexp)
      (binop (op-to-proc op) (parse lexp)(parse rexp))]
     [(list 'with bind body-expr)
@@ -114,13 +117,18 @@
        (valid-identifier? (first bind))))
 
 ;; desugar : WAE -> WAE
-;; desugar a given WAE
+;; desugar a given expression
 (define (desugar expr)
   (type-case WAE expr
+    [binop (op lhs rhs)
+           (binop op (desugar lhs)(desugar rhs))]
+    [with (bind body)
+          (with (binding (binding-name bind) (desugar (binding-named-expr bind))) (desugar body))]
     [with* (lob body)
            (if (empty? lob)
-               body
-               (with (first lob) (desugar (with* (rest lob) body))))]
+               (desugar body)
+               (with (binding (binding-name (first lob)) (desugar (binding-named-expr (first lob))))
+                     (desugar (with* (rest lob) body))))]
     [else expr]))
 
 (test (desugar (num 1)) (num 1))
@@ -129,6 +137,18 @@
 (test (desugar (with* (list (binding 'x (num 1))) (id 'x))) (with (binding 'x (num 1)) (id 'x)))
 (test (desugar (with* (list (binding 'x (num 1)) (binding 'y (num 2))) (id 'x))) (with (binding 'x (num 1))
                                                                                        (with (binding 'y (num 2)) (id 'x))))
+(test (desugar (with*
+                (list (binding 'x (num 1))
+                      (binding 'y (num 2))
+                      (binding 'x (binop + 
+                                         (id 'x)
+                                         (with* (list (binding 'z (num 1)))
+                                                (id 'z)))))
+                (id 'x)))
+      (with (binding 'x (num 1))
+            (with (binding 'y (num 2)) 
+                  (with (binding 'x (binop + (id 'x) (with (binding 'z (num 1)) (id 'z))))
+                        (id 'x)))))
 
 
 
@@ -140,10 +160,6 @@
     [binop (op lhs rhs)
            (binop op (subst val-expr i lhs)
                   (subst val-expr i rhs))]
-    ;    [add (lhs rhs) (add (subst val-expr i lhs)
-    ;                        (subst val-expr i rhs))]
-    ;    [sub (lhs rhs) (sub (subst val-expr i lhs)
-    ;                        (subst val-expr i rhs))]
     [with (bind b-e)
           ;; Check whether there are free instances
           ;; in the body at all (which there aren't
@@ -155,10 +171,10 @@
               (with (binding (binding-name bind)
                              (subst val-expr i (binding-named-expr bind)))
                     (subst val-expr i b-e)))]
+    [with* (lob b-e) (error "Should have been desugared away")]
     [id (name) (if (symbol=? name i)
                    val-expr
-                   body)]
-    [else (error "unexpected WAE type.")]))
+                   body)]))
 
 (test (subst (num 5) 'x (num 0)) (num 0))
 (test (subst (num 5) 'x (id 'x)) (num 5))
@@ -180,20 +196,15 @@
   (type-case WAE (desugar expr)
     [num (n) n]
     [binop (op l r) (op (interp l) (interp r))]
-    ;    [add (l r) (+ (interp l) (interp r))]
-    ;    [sub (l r) (- (interp l) (interp r))]
     [with (bind body)
           (interp (subst (num (interp (binding-named-expr bind)))
                          (binding-name bind)
                          body))]
-    [with* (lob body) (error "Should have been desugared")]
+    [with* (lob body) (error 'interp "Should have been desugared")]
     [id (name)
         (error 'interp "Unbound identifier ~s." name)]))
 
 
-
-
-#|
 ;; Here are some test cases to get you started!
 
 ;;; parse tests
@@ -208,20 +219,20 @@
 (test (parse '0) (num 0))
 
 ;; Plain arithmetic.
-(test (parse '{+ 1 2}) (add (num 1) (num 2)))
-(test (parse '{- 1 2}) (sub (num 1) (num 2)))
-(test (parse '{+ 3 4}) (add (num 3) (num 4)))
-(test (parse '{- 3 4}) (sub (num 3) (num 4)))
+(test (parse '{+ 1 2}) (binop + (num 1) (num 2)))
+(test (parse '{- 1 2}) (binop - (num 1) (num 2)))
+(test (parse '{+ 3 4}) (binop + (num 3) (num 4)))
+(test (parse '{- 3 4}) (binop - (num 3) (num 4)))
 
 (test (parse '{+ {- 1 {+ 2 3}} 4})
-      (add (sub (num 1) (add (num 2) (num 3)))
-           (num 4)))
+      (binop + (binop - (num 1) (binop + (num 2) (num 3)))
+             (num 4)))
 
 ;; With binding
 (test (parse '{with {x 1} x}) (with (binding 'x (num 1)) (id 'x)))
 
 (test (parse '{with {x {with {y 2} {+ x y}}} {with {z 3} {+ x z}}})
-      (with (binding 'x (with (binding 'y (num 2)) (add (id 'x) (id 'y)))) (with (binding 'z (num 3)) (add (id 'x) (id 'z)))))
+      (with (binding 'x (with (binding 'y (num 2)) (binop + (id 'x) (id 'y)))) (with (binding 'z (num 3)) (binop + (id 'x) (id 'z)))))
 
 ;; Error checking
 
@@ -270,7 +281,7 @@
 ;; you're descending into the appropriate sub-exprs, since even numbers
 ;; and symbols must be parsed.  (Unless you believe for some reason you're
 ;; only descending "one level down".)
-|#
+
 
 (test (parse '1) (num 1))
 (test (parse 'x) (id 'x))
@@ -281,6 +292,7 @@
 (test (parse '{with {x 1} x}) (with (binding 'x (num 1)) (id 'x)))
 (test (parse '{with* {} 4}) (with* '() (num 4)))
 (test (parse '{with* {{x 1}} 4}) (with* (list (binding 'x (num 1))) (num 4)))
+(test/exn (parse '{with* {{x 1 1}} 4}) "")
 (test (parse '{with* {{x 1} {y 2}} x}) (with* (list (binding 'x (num 1))(binding 'y (num 2))) (id 'x)))
 
 ; One extra with test, because it might be handy in interp.
@@ -301,9 +313,9 @@
 (test (parse '{with* {{x 1}
                       {x {+ x 1}}}
                      x})
-             (with* (list (binding 'x (num 1))
-                          (binding 'x (binop + (id 'x) (num 1))))
-                    (id 'x)))
+      (with* (list (binding 'x (num 1))
+                   (binding 'x (binop + (id 'x) (num 1))))
+             (id 'x)))
 
 
 
@@ -319,6 +331,7 @@
 (test (interp (parse '{with {x 5} {* x x}})) 25)
 (test (interp (parse '{with {x 5} {with {y 10} {+ x y}}})) 15)
 (test (interp (parse '{with {x 5} {with {y {+ x 1}} {+ x y}}})) 11)
+(test (interp (parse '{with {x 1} {with {x 2} x}})) 2)
 (test/exn (interp (parse '{with {x x} x})) "")
 (test/exn (interp (parse '{with {x 5} {with {y {+ y 1}} {+ x y}}})) "")
 (test (interp (parse '{with {x 5} {with {x 6} {+ x x}}})) 12)
@@ -328,18 +341,24 @@
 (test (interp (parse '{with* {{x 1} {y 2}} x})) 1)
 (test (interp (parse '{with* {{x 1} {y 2}} {+ x y}})) 3)
 (test (interp (parse '{with* {{x 1} {x 2}} x})) 2)
+(test/exn (interp (parse '{with* {{x (with {y 1} y)}} (+ x y)})) "")
+
 (test (interp (parse '{with* {{x 5} {y {+ x 1}}} {+ x y}})) 11)
 (test/exn (interp (parse 'x)) "")
 (test/exn (interp (parse 'lambda-bound)) "")
 
 
 
+(test (interp (parse '{with* {{x {with* {{z 1}} z}}} x})) 1)
+(test (interp (parse '{with* {{x 1}
+                              {y 2}
+                              {x {+ x {with* {{z 1}} z}}}}
+                             x})) 2)
+(test (interp (parse '{with* {{x 1}
+                              {y 2}
+                              {x {+ x {with {z {with* {{x 1}}
+                                                      x}} z}}}}
+                             x})) 2)
 
 
-
-;; P.S. Steve's favorite programming language keyword is "catch"
-;; because his first programming assignment at the college level was
-;; about fishing, and so he and half the class named a variable
-;; "catch" and spent hours debugging novice-incomprehensible error
-;; messages as a result.
 
