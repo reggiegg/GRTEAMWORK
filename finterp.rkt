@@ -5,10 +5,10 @@
 
 (define-type WAE
   [num (n number?)]
-;  [add (lhs WAE?)    
-;       (rhs WAE?)]
-;  [sub (lhs WAE?)
-;       (rhs WAE?)]
+  ;  [add (lhs WAE?)    
+  ;       (rhs WAE?)]
+  ;  [sub (lhs WAE?)
+  ;       (rhs WAE?)]
   [binop (op procedure?) (lhs WAE?) (rhs WAE?)]
   [with (b Binding?) (body WAE?)]
   [with* (lob (listof Binding?)) (body WAE?)]
@@ -31,8 +31,8 @@
 
 ;; divide by zero
 (test/exn (div 3 0) "")
-      
-      
+
+
 
 ;; hash table for procedures 
 (define *proctable* (hash '+ + '- - '/ div '* *))
@@ -90,8 +90,8 @@
   (match sexp
     [(? valid-identifier?) (id sexp)]
     [(? number?) (num sexp)]
-;    [(list '+ lexp rexp) (add (parse lexp) (parse rexp))]
-;    [(list '- lexp rexp) (sub (parse lexp) (parse rexp))]
+    ;    [(list '+ lexp rexp) (add (parse lexp) (parse rexp))]
+    ;    [(list '- lexp rexp) (sub (parse lexp) (parse rexp))]
     [(list (and (? valid-binop?) op) lexp rexp)
      (binop (op-to-proc op) (parse lexp)(parse rexp))]
     [(list 'with bind body-expr)
@@ -113,6 +113,23 @@
   (and (= 2 (length bind))
        (valid-identifier? (first bind))))
 
+;; desugar : WAE -> WAE
+;; desugar a given WAE
+(define (desugar expr)
+  (type-case WAE expr
+    [with* (lob body)
+           (if (empty? lob)
+               body
+               (with (first lob) (desugar (with* (rest lob) body))))]
+    [else expr]))
+
+(test (desugar (num 1)) (num 1))
+(test (desugar (with (binding 'x (num 1)) (id 'x))) (with (binding 'x (num 1)) (id 'x)))
+(test (desugar (with* '() (num 2))) (num 2))
+(test (desugar (with* (list (binding 'x (num 1))) (id 'x))) (with (binding 'x (num 1)) (id 'x)))
+(test (desugar (with* (list (binding 'x (num 1)) (binding 'y (num 2))) (id 'x))) (with (binding 'x (num 1))
+                                                                                       (with (binding 'y (num 2)) (id 'x))))
+
 
 
 ; subst : WAE symbol WAE -> WAE
@@ -123,10 +140,10 @@
     [binop (op lhs rhs)
            (binop op (subst val-expr i lhs)
                   (subst val-expr i rhs))]
-;    [add (lhs rhs) (add (subst val-expr i lhs)
-;                        (subst val-expr i rhs))]
-;    [sub (lhs rhs) (sub (subst val-expr i lhs)
-;                        (subst val-expr i rhs))]
+    ;    [add (lhs rhs) (add (subst val-expr i lhs)
+    ;                        (subst val-expr i rhs))]
+    ;    [sub (lhs rhs) (sub (subst val-expr i lhs)
+    ;                        (subst val-expr i rhs))]
     [with (bind b-e)
           ;; Check whether there are free instances
           ;; in the body at all (which there aren't
@@ -140,7 +157,8 @@
                     (subst val-expr i b-e)))]
     [id (name) (if (symbol=? name i)
                    val-expr
-                   body)]))
+                   body)]
+    [else (error "unexpected WAE type.")]))
 
 (test (subst (num 5) 'x (num 0)) (num 0))
 (test (subst (num 5) 'x (id 'x)) (num 5))
@@ -151,27 +169,28 @@
       (with (binding 'y (num 10)) (binop + (num 5) (id 'y))))
 (test (subst (num 5) 'x (with (binding 'y (binop + (id 'x) (num 1))) (binop + (id 'x) (id 'y))))
       (with (binding 'y (binop + (num 5) (num 1))) (binop + (num 5) (id 'y))))
+(test/exn (subst (num 5) 'x (with* (list (binding 'x (num 2))) (id 'x))) "")
 
 
-#|
 
 ;; interp : WAE -> number
 ;; Consumes a WAE representation of an expression and computes
 ;; the corresponding numerical result
 (define (interp expr)
-  (type-case WAE expr
+  (type-case WAE (desugar expr)
     [num (n) n]
     [binop (op l r) (op (interp l) (interp r))]
-;    [add (l r) (+ (interp l) (interp r))]
-;    [sub (l r) (- (interp l) (interp r))]
+    ;    [add (l r) (+ (interp l) (interp r))]
+    ;    [sub (l r) (- (interp l) (interp r))]
     [with (bind body)
           (interp (subst (num (interp (binding-named-expr bind)))
                          (binding-name bind)
                          body))]
+    [with* (lob body) (error "Should have been desugared")]
     [id (name)
         (error 'interp "Unbound identifier ~s." name)]))
 
-|#
+
 
 
 #|
@@ -264,8 +283,6 @@
 (test (parse '{with* {{x 1}} 4}) (with* (list (binding 'x (num 1))) (num 4)))
 (test (parse '{with* {{x 1} {y 2}} x}) (with* (list (binding 'x (num 1))(binding 'y (num 2))) (id 'x)))
 
-
-#|
 ; One extra with test, because it might be handy in interp.
 (test (parse '{with {x 1} {with {x 2} x}}) 
       (with (binding 'x (num 1)) (with (binding 'x (num 2)) (id 'x))))
@@ -313,6 +330,12 @@
 (test/exn (interp (parse '{with {x 5} {with {y {+ y 1}} {+ x y}}})) "")
 (test (interp (parse '{with {x 5} {with {x 6} {+ x x}}})) 12)
 (test (interp (parse '{with {x 5} {with {x {+ x 1}} {+ x x}}})) 12)
+(test (interp (parse '{with* {} 4})) 4)
+(test (interp (parse '{with* {{x 1}} 4})) 4)
+(test (interp (parse '{with* {{x 1} {y 2}} x})) 1)
+(test (interp (parse '{with* {{x 1} {y 2}} {+ x y}})) 3)
+(test (interp (parse '{with* {{x 1} {x 2}} x})) 2)
+(test (interp (parse '{with* {{x 5} {y {+ x 1}}} {+ x y}})) 11)
 
 (test/exn (interp (parse 'x)) "")
 (test/exn (interp (parse 'lambda-bound)) "")
@@ -328,4 +351,3 @@
 ;; "catch" and spent hours debugging novice-incomprehensible error
 ;; messages as a result.
 
-|#
