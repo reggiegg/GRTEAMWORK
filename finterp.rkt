@@ -15,7 +15,7 @@
   [id (name symbol?)])
 
 ;; list of reserved symbols
-(define *reserved-symbols* '(with))
+(define *reserved-symbols* '(with with*))
 
 
 ;; div : number number -> number or error
@@ -305,14 +305,7 @@
                           (binding 'x (binop + (id 'x) (num 1))))
                     (id 'x)))
 
-;; You might wonder why we don't test all our binops.  That's because we have
-;; a helper function that looks up an operator symbol in our operator table,
-;; and it already has sufficient test cases for us to be confident about its
-;; behaviour.
 
-
-
-;;; A few--too few!--interp tests.
 
 (test (interp (num 100)) 100)
 (test (interp (parse '{+ 1 2})) 3)
@@ -336,7 +329,6 @@
 (test (interp (parse '{with* {{x 1} {y 2}} {+ x y}})) 3)
 (test (interp (parse '{with* {{x 1} {x 2}} x})) 2)
 (test (interp (parse '{with* {{x 5} {y {+ x 1}}} {+ x y}})) 11)
-
 (test/exn (interp (parse 'x)) "")
 (test/exn (interp (parse 'lambda-bound)) "")
 
