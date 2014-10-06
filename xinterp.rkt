@@ -23,11 +23,172 @@
             (body CFWAE?)
             (env Env?)])
 
+;; list of reserved symbols
+(define *reserved-symbols* '(with with*))
+
+;; div : number number -> number or error
+;; divides first number by the second unless second is 0 where it throws an error
+(define (div l r)
+  (if (= r 0)
+      (error 'div "divide by zero error.")
+      (/ l r)))
+
+;; regular divisions
+(test (div 2 2) 1)
+(test (div 4 2) 2)
+
+;; divide by zero
+(test/exn (div 3 0) "")
+
+;; hash table for procedures 
+(define *proctable* (hash '+ + '- - '/ div '* *))
+
+;; op-to-proc : symbol -> procedure
+;; converts an operator symbol to its associated procedure
+(define (op-to-proc op)
+  (if (hash-has-key? *proctable* op)
+      (hash-ref *proctable* op)
+      (error 'op-to-proc "Not a valid operator")))
+
+;; recognized op
+(test (op-to-proc '+) +)
+;; invalid op
+(test/exn (op-to-proc '&) "")
+
+;; valid-identifier? : any -> boolean
+;; Determines whether the parameter is valid as an identifier name, i.e.,
+;; a symbol that is not reserved.
+(define (valid-identifier? sym)
+  (and (symbol? sym)
+       (and (not (member sym *reserved-symbols*))
+            (not (member sym (sequence->list (in-hash-keys *proctable*)))))))
+
+;; Reserved symbols.
+(test (valid-identifier? '+) false)
+(test (valid-identifier? '-) false)
+(test (valid-identifier? 'with) false)
+
+;; Not a symbol
+(test (valid-identifier? '{+ 1 2}) false)
+(test (valid-identifier? 3) false)
+(test (valid-identifier? "id") false)
+
+;; OK
+(test (valid-identifier? 'id) true)
+(test (valid-identifier? 'x) true)
+
+;; valid-binop? : any -> boolean
+;; Determines whether the operator given is valid as a binary operator
+(define (valid-binop? op)
+  (and (symbol? op)
+       (not (not (member op (sequence->list (in-hash-keys *proctable*)))))))
+;; OK
+(test (valid-binop? '+) true)
+(test (valid-binop? '-) true)
+(test (valid-binop? '/) true)
+
+;; Not a symbol
+(test (valid-binop? '8) false)
+(test (valid-binop? '{+ 1 2}) false)
+
+;; Other operators
+(test (valid-binop? 'with) false)
+
+;; valid-bind? : listOfSymbol -> Boolean
+;; produce true if correctly formed binding
+(define (valid-bind? bind)
+  (and (= 2 (length bind))
+       (valid-identifier? (first bind))))
 
 ;; parse : expression -> CFWAE
 ;; This procedure parses an expression into a CFWAE
 (define (parse sexp)
-  (num 0))
+  (match sexp
+    [(? valid-identifier?) (id sexp)]
+    [(? number?) (num sexp)]
+    [(list (and (? valid-binop?) op) lexp rexp)
+     (binop (op-to-proc op) (parse lexp)(parse rexp))]
+    [(list 'with bind body-expr)
+     (if (valid-bind? bind)
+         (with (binding (first bind)(parse (second bind)))(parse body-expr))
+         (error 'parse "wrong number of binding args"))]
+    [(list 'if0 test-expr then-expr else-expr)
+     (if0 (parse test-expr)
+          (parse then-expr)
+          (parse else-expr))]
+    [(list 'fun ids body-expr)
+     (if (andmap valid-identifier? ids)
+         (fun ids (parse body-expr))
+         (error 'parse "invalid function ids in: ~s" sexp))]
+    [(list fun-expr)
+     (app (parse (first fun-expr)) (map parse (rest fun-expr)))]
+    [else (error 'parse "unable to parse the s-expression ~s" sexp)]))
+
+(test (parse '{if0 0 1 2}) (if0 (num 0) (num 1) (num 2)))
+(test (parse '{if0 {/ 1 2} 1 2}) (if0 (binop div (num 1) (num 2)) (num 1) (num 2)))
+(test (parse '{if0 0 {if0 0 1 2} {if0 2 1 0}}) (if0 (num 0) 
+                                                    (if0 (num 0) (num 1) (num 2))
+                                                    (if0 (num 2) (num 1) (num 0))))
+
+(test (parse '{fun (x) 0}) (fun '(x) (num 0)))
+(test (parse '{fun (x y) 0}) (fun '(x y) (num 0)))
+(test (parse '{fun (x) (+ 1 2)}) (fun '(x) (binop + (num 1) (num 2))))
+
+(test (parse '{some-fun 3}) (app '(some-fun) 3))
+
+#|
+;; Symbols
+(test (parse 'x) (id 'x))
+(test (parse 'ys) (id 'ys))
+
+;; Reserved Symbol
+(test/exn (parse '+) "")
+
+;; Numbers
+(test (parse '3) (num 3))
+(test (parse '0) (num 0))
+
+;; Plain arithmetic.
+(test (parse '{+ 1 2}) (binop + (num 1) (num 2)))
+(test (parse '{- 1 2}) (binop - (num 1) (num 2)))
+(test (parse '{* 3 4}) (binop * (num 3) (num 4)))
+(test (parse '{/ 3 4}) (binop div (num 3) (num 4)))
+(test (parse '{+ {- 1 {/ 2 3}} 4})
+      (binop + (binop - (num 1) (binop div (num 2) (num 3)))
+             (num 4)))
+
+;; With binding
+(test (parse '{with {x 1} x}) (with (binding 'x (num 1)) (id 'x)))
+(test (parse '{with {x {with {y 2} {+ x y}}} {with {z 3} {+ x z}}})
+      (with (binding 'x (with (binding 'y (num 2)) (binop + (id 'x) (id 'y)))) (with (binding 'z (num 3)) (binop + (id 'x) (id 'z)))))
+
+; non-lists, reserved symbols (e.g., + and -), strings
+(test/exn (parse '"hello") "")
+(test/exn (parse '+) "")
+(test/exn (parse '-) "")
+(test/exn (parse 'with) "")
+
+; lists that start with things besides +, -, with or with*, esp. numbers
+(test/exn (parse '{hello 1 2}) "")
+(test/exn (parse '{"abc"}) "")
+(test/exn (parse '{1 2 3}) "")
+
+; binop with fewer or more than 2 arguments
+(test/exn (parse '{+}) "")
+(test/exn (parse '{+ 1}) "")
+(test/exn (parse '{+ 1 2 3}) "")
+
+; ill-structured with
+(test/exn (parse '{with}) "")
+(test/exn (parse '{with x}) "")
+(test/exn (parse '{with x 2 3}) "")
+(test/exn (parse '{with {x 1}}) "")
+(test/exn (parse '{with {x 1} 2 3}) "")
+(test/exn (parse '{with {x 1 2} 3}) "")
+(test/exn (parse '{with {+ 1} 2}) "")
+
+
+|#
 
 ;; pre-process : CFWAE -> CFWAE
 ;; Consumes a CFWAE and constructs a corresponding CFWAE without
@@ -70,15 +231,15 @@
 (define (CFWAE-pre-fold f expr)
   (local ([define (ffold expr)
             (type-case CFWAE (f expr)
-                       [num (n) (num n)]
-                       [binop (op lhs rhs) (binop op (ffold lhs) (ffold rhs))]
-                       [with (b body) (with (binding (binding-name b)
-                                                     (ffold (binding-named-expr b)))
-                                            (ffold body))]
-                       [id (name) (id name)]
-                       [if0 (c t e) (if0 (ffold c) (ffold t) (ffold e))]
-                       [fun (args body) (fun args (ffold body))]
-                       [app (f args) (app (ffold f) (map ffold args))])])
+              [num (n) (num n)]
+              [binop (op lhs rhs) (binop op (ffold lhs) (ffold rhs))]
+              [with (b body) (with (binding (binding-name b)
+                                            (ffold (binding-named-expr b)))
+                                   (ffold body))]
+              [id (name) (id name)]
+              [if0 (c t e) (if0 (ffold c) (ffold t) (ffold e))]
+              [fun (args body) (fun args (ffold body))]
+              [app (f args) (app (ffold f) (map ffold args))])])
     (ffold expr)))
 
 ;; Example: 
