@@ -271,22 +271,6 @@
            (list (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))))
                         
 
-
-;(test (parse '{some-fun 3}) (app (id 'some-fun) (list (num 3))))
-;(test (parse '{some-fun 1 2 3}) (app (id 'some-fun) (list (num 1) (num 2) (num 3))))
-;(test (parse '{some-fun 1 {with {x 10} x}}) (app (id 'some-fun) (list (num 1) (with (binding 'x (num 10)) (id 'x)))))
-;
-;(test (parse '{x {with {x {fun {y} 0}} x} 10}) (app (id 'x) (list (with (binding 'x (fun '(y) (num 0))) (id 'x)) (num 10))))
-;
-
-
-;(test (parse '{if0 0 1 2}) (if0 (num 0) (num 1) (num 2)))
-;(test (parse '{if0 {/ 1 2} 1 2}) (if0 (binop div (num 1) (num 2)) (num 1) (num 2)))
-;(test (parse '{if0 0 {if0 0 1 2} {if0 2 1 0}}) (if0 (num 0) 
-;                                                    (if0 (num 0) (num 1) (num 2))
-;                                                    (if0 (num 2) (num 1) (num 0))))
-
-
 ;; interp : CFWAE -> CFWAE-Value
 ;; This procedure interprets the given CFWAE and produces a result 
 ;; in the form of a CFWAE-Value (either a closureV, thunkV, or numV).
