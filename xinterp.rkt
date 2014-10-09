@@ -223,16 +223,50 @@
     [app (fun-expr arg-exprs)
          (cond
            [(empty? arg-exprs) (pre-process fun-expr)]
-           [(= 1 (length arg-exprs))(app (pre-process fun-expr) 
-                                         (pre-process (first arg-exprs)))]
-           [else (pre-process (cons (app fun-expr (first arg-exprs))
-                                    (rest arg-exprs)))])]))
-
+           [(= 1 (length arg-exprs)) (app (pre-process fun-expr) 
+                                          (list (pre-process (first arg-exprs))))]
+           [else (app (pre-process (app fun-expr (rest arg-exprs)))
+                      (list (first arg-exprs)))])]))
+                       
+                       
+                       
 (test (pre-process (parse 1)) (num 1))
 (test (pre-process (parse 'x)) (id 'x))
+(test (pre-process (parse '{+ 3 4})) (binop + (num 3) (num 4)))
+
+(test (pre-process (parse '{if0 0 1 2})) (if0 (num 0) (num 1) (num 2)))
 
 (test (pre-process (parse '{fun (x) 0})) (fun '(x) (num 0)))
 (test (pre-process (parse '{fun (x y) 0})) (fun '(x) (fun '(y) (num 0))))
+;(test (pre-process (parse '{some-fun 3})) (app (id 'some-fun) (num 3)))
+
+(test (pre-process 
+       (app (fun '(x y z) (if0 (id 'x) (id 'y) (id 'z)))
+            (list (num 0) (num 1) (num 2))))
+      (app (app (app (fun '(x)
+                           (fun '(y)
+                                (fun '(z)
+                                     (if0 (id 'x) (id 'y) (id 'z)))))
+                      (list (num 2)))
+                 (list (num 1)))
+            (list (num 0))))
+       
+            
+
+;(test (parse '{some-fun 3}) (app (id 'some-fun) (list (num 3))))
+;(test (parse '{some-fun 1 2 3}) (app (id 'some-fun) (list (num 1) (num 2) (num 3))))
+;(test (parse '{some-fun 1 {with {x 10} x}}) (app (id 'some-fun) (list (num 1) (with (binding 'x (num 10)) (id 'x)))))
+;
+;(test (parse '{x {with {x {fun {y} 0}} x} 10}) (app (id 'x) (list (with (binding 'x (fun '(y) (num 0))) (id 'x)) (num 10))))
+;
+
+
+;(test (parse '{if0 0 1 2}) (if0 (num 0) (num 1) (num 2)))
+;(test (parse '{if0 {/ 1 2} 1 2}) (if0 (binop div (num 1) (num 2)) (num 1) (num 2)))
+;(test (parse '{if0 0 {if0 0 1 2} {if0 2 1 0}}) (if0 (num 0) 
+;                                                    (if0 (num 0) (num 1) (num 2))
+;                                                    (if0 (num 2) (num 1) (num 0))))
+
 
 ;; interp : CFWAE -> CFWAE-Value
 ;; This procedure interprets the given CFWAE and produces a result 
