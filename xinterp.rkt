@@ -208,9 +208,9 @@
                   (pre-process lhs)
                   (pre-process rhs))]
     [with (bind body-expr)
-          (app (fun (binding-name bind)
+          (app (fun (list (binding-name bind))
                     (pre-process body-expr))
-               (pre-process (binding-named-expr bind)))]
+               (list (pre-process (binding-named-expr bind))))]
     [if0 (test-expr then-expr else-expr)
          (if0 (pre-process test-expr)
               (pre-process then-expr)
@@ -222,7 +222,7 @@
                   (pre-process (fun (rest args) body-expr))))]
     [app (fun-expr arg-exprs)
          (cond
-           [(empty? arg-exprs) (pre-process fun-expr)]
+           [(empty? arg-exprs) (app (pre-process fun-expr) arg-exprs)]
            [(= 1 (length arg-exprs)) (app (pre-process fun-expr) 
                                           (list (pre-process (first arg-exprs))))]
            [else (app (pre-process (app fun-expr (rest arg-exprs)))
@@ -238,8 +238,14 @@
 
 (test (pre-process (parse '{fun (x) 0})) (fun '(x) (num 0)))
 (test (pre-process (parse '{fun (x y) 0})) (fun '(x) (fun '(y) (num 0))))
-;(test (pre-process (parse '{some-fun 3})) (app (id 'some-fun) (num 3)))
 
+(test (pre-process (app (fun '() (num 0)) '()))
+      (app (fun '() (num 0)) '()))
+(test (pre-process (app (fun '(x) (num 0)) (list (num 1))))
+      (app (fun '(x) (num 0)) (list (num 1))))
+; a test to show that we don't care if the fun and the args don't agree
+(test (pre-process (app (fun '() (num 0)) (list (num 1))))
+      (app (fun '() (num 0)) (list (num 1))))
 (test (pre-process 
        (app (fun '(x y z) (if0 (id 'x) (id 'y) (id 'z)))
             (list (num 0) (num 1) (num 2))))
@@ -250,8 +256,21 @@
                       (list (num 2)))
                  (list (num 1)))
             (list (num 0))))
-       
-            
+
+(test (pre-process (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))
+      (app (fun '(x) (binop + (id 'x) (num 2))) (list (num 1))))
+#;
+(test (pre-process 
+       (app (fun '(x y z) (if0 (id 'x) (id 'y) (id 'z)))
+            (list (with (binding 'x (num 1)) (binop + (id 'x) (num 2)))
+                  (fun '(x) (binop + (id 'x) (num 2)))
+                  (num 14))))
+      (app (app (app (fun '(x) (fun '(y) (fun '(z) (if0 (id 'x) (id 'y) (id 'z)))))
+                     (list (num 14)))
+                (list (fun '(x) (binop + (id 'x) (num 2)))))
+           (list (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))))
+                        
+
 
 ;(test (parse '{some-fun 3}) (app (id 'some-fun) (list (num 3))))
 ;(test (parse '{some-fun 1 2 3}) (app (id 'some-fun) (list (num 1) (num 2) (num 3))))
