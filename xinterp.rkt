@@ -227,9 +227,9 @@
                                           (list (pre-process (first arg-exprs))))]
            [else (app (pre-process (app fun-expr (rest arg-exprs)))
                       (list (first arg-exprs)))])]))
-                       
-                       
-                       
+
+
+
 (test (pre-process (parse 1)) (num 1))
 (test (pre-process (parse 'x)) (id 'x))
 (test (pre-process (parse '{+ 3 4})) (binop + (num 3) (num 4)))
@@ -250,12 +250,12 @@
        (app (fun '(x y z) (if0 (id 'x) (id 'y) (id 'z)))
             (list (num 0) (num 1) (num 2))))
       (app (app (app (fun '(x)
-                           (fun '(y)
-                                (fun '(z)
-                                     (if0 (id 'x) (id 'y) (id 'z)))))
-                      (list (num 2)))
-                 (list (num 1)))
-            (list (num 0))))
+                          (fun '(y)
+                               (fun '(z)
+                                    (if0 (id 'x) (id 'y) (id 'z)))))
+                     (list (num 2)))
+                (list (num 1)))
+           (list (num 0))))
 
 (test (pre-process (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))
       (app (fun '(x) (binop + (id 'x) (num 2))) (list (num 1))))
@@ -269,14 +269,38 @@
                      (list (num 14)))
                 (list (fun '(x) (binop + (id 'x) (num 2)))))
            (list (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))))
-                        
+
 
 ;; interp : CFWAE -> CFWAE-Value
 ;; This procedure interprets the given CFWAE and produces a result 
 ;; in the form of a CFWAE-Value (either a closureV, thunkV, or numV).
 ;; (Assumes the input was successfully produced by pre-process.)
 (define (interp expr)
-  (numV 0))
+  (type-case CFWAE expr
+    [num (n) (numV n)]
+    [binop (op lhs rhs) (numV (op (numV-n (interp lhs))
+                                  (numV-n (interp rhs))))]
+    [id (id) (numV 0) ]
+    [with (bind body-expr) (numV 0)]
+    [if0 (cond-expr then-expr else-expr)
+         (if (= 0 (numV-n (interp cond-expr)))
+       ;;(if (and (numV? (interp cond-expr)) (= 0 (numV-n (interp cond-expr))));; Maybe not required
+             (interp then-expr)
+             (interp else-expr))]
+    [fun (args body-expr) (numV 0)]
+    [app (fun-expr arg-exprs) (numV 0)]))
+
+;; testing num
+(test (interp (num 3)) (numV 3))
+
+;; testing binop
+(test (interp (binop + (num 3) (num 4))) (numV 7))
+
+(test (interp (if0 (num 0) (num 1) (num 2))) (numV 1))
+;(test (interp (if0 (thunkV 'x) (num 1) (num 2))) (numV 2)) <-- Thunks? Closures? 
+(test (interp (if0 (num 0) (binop + (num 1) (num 2)) (binop + (num 3) (num 4)))) (numV 3))
+(test (interp (if0 (binop + (num 1) (num 2)) (num 1) (num 2))) (numV 2))
+
 
 ;; run : sexp -> CFWAE-Value
 ;; Consumes an sexp and passes it through parsing, pre-processing,
