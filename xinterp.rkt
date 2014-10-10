@@ -276,19 +276,21 @@
 ;; in the form of a CFWAE-Value (either a closureV, thunkV, or numV).
 ;; (Assumes the input was successfully produced by pre-process.)
 (define (interp expr)
-  (type-case CFWAE expr
-    [num (n) (numV n)]
-    [binop (op lhs rhs) (numV (op (numV-n (interp lhs))
-                                  (numV-n (interp rhs))))]
-    [id (id) (numV 0) ]
-    [with (bind body-expr) (numV 0)]
-    [if0 (cond-expr then-expr else-expr)
-         (if (= 0 (numV-n (interp cond-expr)))
-       ;;(if (and (numV? (interp cond-expr)) (= 0 (numV-n (interp cond-expr))));; Maybe not required
-             (interp then-expr)
-             (interp else-expr))]
-    [fun (args body-expr) (numV 0)]
-    [app (fun-expr arg-exprs) (numV 0)]))
+  (local [(define (helper expr env)
+            (type-case CFWAE expr
+              [num (n) (numV n)]
+              [binop (op lhs rhs) (numV (op (numV-n (helper lhs env))
+                                            (numV-n (helper rhs env))))]
+              [id (id) (numV 0) ]
+              [with (bind body-expr) (numV 0)]
+              [if0 (cond-expr then-expr else-expr)
+                   (if (= 0 (numV-n (helper cond-expr env)))
+                       ;;(if (and (numV? (interp cond-expr)) (= 0 (numV-n (interp cond-expr))));; Maybe not required
+                       (helper then-expr env)
+                       (helper else-expr env))]
+              [fun (args body-expr) (numV 0)]
+              [app (fun-expr arg-exprs) (numV 0)]))]
+    (helper expr (mtEnv))))
 
 ;; testing num
 (test (interp (num 3)) (numV 3))
