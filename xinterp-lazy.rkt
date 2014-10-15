@@ -313,10 +313,12 @@ Our test results: 4/4 passed.
             (type-case CFWAE expr
               [num (n) (numV n)]
               [binop (op lhs rhs)
-                     (if (and (numV? (helper lhs env))(numV? (helper rhs env)))
-                         (numV (op (numV-n (helper lhs env))
-                                   (numV-n (helper rhs env))))
-                         (error "trying to perform a binary operation on non-numeric values"))] ;; check for numbers?
+                     (local [(define lhs-val (strict (helper lhs env)))
+                             (define rhs-val (strict (helper rhs env)))]
+                       (if (and (numV? lhs-val) (numV? rhs-val))
+                           (numV (op (numV-n lhs-val) 
+                                     (numV-n rhs-val)))
+                           (error "trying to perform a binary operation on non-numeric values")))] ;; check for numbers?
               [id (id) (lookup id env)]
               [if0 (cond-expr then-expr else-expr)
                    (local [(define cond-val (helper cond-expr env))]
