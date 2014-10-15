@@ -218,8 +218,8 @@
     [fun (args body-expr) 
          (if (<= (length args) 1)
              (fun args (pre-process body-expr))
-             (fun (list (first args))
-                  (pre-process (fun (rest args) body-expr))))]
+             (pre-process (fun (rest args)
+                               (fun (list (first args)) body-expr))))]
     [app (fun-expr arg-exprs)
          (cond
            [(empty? arg-exprs) (app (pre-process fun-expr) arg-exprs)]
@@ -237,7 +237,7 @@
 (test (pre-process (parse '{if0 0 1 2})) (if0 (num 0) (num 1) (num 2)))
 
 (test (pre-process (parse '{fun (x) 0})) (fun '(x) (num 0)))
-(test (pre-process (parse '{fun (x y) 0})) (fun '(x) (fun '(y) (num 0))))
+(test (pre-process (parse '{fun (x y) 0})) (fun '(y) (fun '(x) (num 0))))
 
 (test (pre-process (app (fun '() (num 0)) '()))
       (app (fun '() (num 0)) '()))
@@ -249,16 +249,16 @@
 (test (pre-process 
        (app (fun '(x y z) (if0 (id 'x) (id 'y) (id 'z)))
             (list (num 0) (num 1) (num 2))))
-      (app (app (app (fun '(x)
+      (app (app (app (fun '(z)
                           (fun '(y)
-                               (fun '(z)
+                               (fun '(x)
                                     (if0 (id 'x) (id 'y) (id 'z)))))
                      (list (num 2)))
                 (list (num 1)))
            (list (num 0))))
 
 (test (pre-process (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))
-      (app (fun '(x) (binop + (num 2) (id 'x))) (list (num 1))))
+      (app (fun '(x) (binop + (id 'x) (num 2))) (list (num 1))))
 #;
 (test (pre-process 
        (app (fun '(x y z) (if0 (id 'x) (id 'y) (id 'z)))
@@ -348,8 +348,18 @@
 ;             3
 ;             4)))
 
-(run '(+ ((fun (x y) (- x y)) 4 3)
-         ((fun (x y) (* x y)) 2 3)))
+(numV-n (interp (pre-process (with
+                              (binding 'apply (fun '(f x y)
+                                                   (app (id 'f) (list (id 'x) (id 'y)))))
+                              (app (id 'apply) (list (fun '(a b) (binop + (id 'a) (id 'b))) (num 3) (num 4)))))))
+
+(run '{with {apply {fun {f x y}
+                  {f x y}}}
+      {apply {fun {a b} {+ a b}}
+             3 4}})
+
+;(run '(+ ((fun (x y) (- x y)) 4 3)
+;         ((fun (x y) (* x y)) 2 3)))
 
 ;; testing num
 (test (run '3) (numV 3))
@@ -409,8 +419,8 @@
 (define (swap-op-args program)
   (CFWAE-pre-fold (lambda (exp)
                     (type-case CFWAE exp
-                               [binop (op lhs rhs) (binop op rhs lhs)]
-                               [else exp]))
+                      [binop (op lhs rhs) (binop op rhs lhs)]
+                      [else exp]))
                   program))
 
 (test (swap-op-args (parse '{+ 1 2})) (parse '{+ 2 1}))
