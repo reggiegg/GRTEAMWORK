@@ -303,10 +303,12 @@
             (type-case CFWAE expr
               [num (n) (numV n)]
               [binop (op lhs rhs)
-                     (if (and (numV? (helper lhs env))(numV? (helper rhs env)))
-                         (numV (op (numV-n (helper lhs env))
-                                   (numV-n (helper rhs env))))
-                         (error "trying to perform a binary operation on non-numeric values"))]
+                     (local [(define helped-lhs (helper lhs env))
+                             (define helped-rhs (helper rhs env))]
+                       (if (and (numV? helped-lhs) (numV? helped-rhs))
+                           (numV (op (numV-n helped-lhs)
+                                     (numV-n helped-rhs)))
+                           (error "trying to perform a binary operation on non-numeric values")))]
               [if0 (cond-expr then-expr else-expr)
                    (local [(define cond-val (helper cond-expr env))]
                      (if (numV? cond-val)
