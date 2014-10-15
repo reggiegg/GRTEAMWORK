@@ -398,21 +398,21 @@
     (ffold expr)))
 
 
-; swap-op-args : CFWAE -> CFWAE
-; Consumes a program and generates the corresponding program in which
-; each instance of a binop has had its lhs and rhs swapped.
-(define (swap-op-args program)
-  (CFWAE-pre-fold (lambda (exp)
-                    (type-case CFWAE exp
-                      [binop (op lhs rhs) (binop op rhs lhs)]
-                      [else exp]))
-                  program))
-
-(test (swap-op-args (parse '{+ 1 2})) (parse '{+ 2 1}))
-(test (swap-op-args (parse '{+ 3 {- {* 1 2} {/ 3 4}}}))
-      (parse '{+ {- {/ 4 3} {* 2 1}} 3}))
-(test (swap-op-args (parse '{fun {x} {+ x {if0 0 {+ 1 2} 3}}}))
-      (parse '{fun {x} {+ {if0 0 {+ 2 1} 3} x}}))
-
-
-(failed-tests)
+;; swap-op-args : CFWAE -> CFWAE
+;; Consumes a program and generates the corresponding program in which
+;; each instance of a binop has had its lhs and rhs swapped.
+;(define (swap-op-args program)
+;  (CFWAE-pre-fold (lambda (exp)
+;                    (type-case CFWAE exp
+;                      [binop (op lhs rhs) (binop op rhs lhs)]
+;                      [else exp]))
+;                  program))
+;
+;(test (swap-op-args (parse '{+ 1 2})) (parse '{+ 2 1}))
+;(test (swap-op-args (parse '{+ 3 {- {* 1 2} {/ 3 4}}}))
+;      (parse '{+ {- {/ 4 3} {* 2 1}} 3}))
+;(test (swap-op-args (parse '{fun {x} {+ x {if0 0 {+ 1 2} 3}}}))
+;      (parse '{fun {x} {+ {if0 0 {+ 2 1} 3} x}}))
+;
+;
+;(failed-tests)
