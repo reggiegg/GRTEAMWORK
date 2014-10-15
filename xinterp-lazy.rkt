@@ -119,7 +119,7 @@
           (parse then-expr)
           (parse else-expr))]
     [(list 'fun ids body-expr)
-     (if (and (andmap valid-identifier? ids) (not (empty? ids)))
+     (if (and (andmap valid-identifier? ids));; (not (empty? ids)))
          (fun ids (parse body-expr))
          (error 'parse "invalid function ids or no ids in: ~s" sexp))]
     [(list fun-expr arg-exprs ...)
@@ -294,23 +294,33 @@
 (define (run sexp)
   (interp (pre-process (parse sexp))))
 
+
+
 ;; interp : CFWAE -> CFWAE-Value
 ;; This procedure interprets the given CFWAE and produces a result 
 ;; in the form of a CFWAE-Value (either a closureV, thunkV, or numV).
 ;; (Assumes the input was successfully produced by pre-process.)
 (define (interp expr)
-  (local [(define (helper expr env)
+  (local [(define (strict expr)
+            (type-case CFWAE-Value expr
+              [thunkV (expr env)
+                      (strict (helper expr env))]
+              [else expr]))
+          (define (helper expr env)
             (type-case CFWAE expr
               [num (n) (numV n)]
+              [id (id) (lookup id env)]
               [binop (op lhs rhs)
-                     (if (and (numV? (helper lhs env))(numV? (helper rhs env)))
-                         (numV (op (numV-n (helper lhs env))
-                                   (numV-n (helper rhs env))))
-                         (error "trying to perform a binary operation on non-numeric values"))]
+                     (local [(define helped-lhs (strict (helper lhs env)))
+                             (define helped-rhs (strict (helper rhs env)))]
+                       (if (and (numV? helped-lhs) (numV? helped-rhs))
+                           (numV (op (numV-n helped-lhs)
+                                     (numV-n helped-rhs)))
+                           (error "trying to perform a binary operation on non-numeric values")))]
               [if0 (cond-expr then-expr else-expr)
                    (local [(define cond-val (helper cond-expr env))]
                      (if (numV? cond-val)
-                         (if (= 0 (numV-n (helper cond-expr env)))
+                         (if (= 0 (numV-n (strict (helper cond-expr env))))
                              (helper then-expr env)
                              (helper else-expr env))
                          (error "non-numeric condition value")))]
@@ -319,7 +329,7 @@
                        (thunkV body-expr env)
                        (closureV (first args) body-expr env))]
               [app (fun-expr arg-exprs)
-                   (local [(define fun-val (helper fun-expr env))]
+                   (local [(define fun-val (strict (helper fun-expr env)))]
                      (type-case CFWAE-Value fun-val
                        [thunkV (body thunk-env) (if (empty? arg-exprs)
                                                     (helper body thunk-env)
@@ -329,37 +339,11 @@
                                      (error "too few arguments")
                                      (helper body
                                              (anEnv param
-                                                    (helper (first arg-exprs) env)
+                                                    (thunkV (first arg-exprs) env)
                                                     closure-env)))]
                        [numV (n) (error 'interp "invalid function expression: ~s" n)]))]
-              [else (error "interpretor error")]))]
-    (helper expr (mtEnv))))
-
-;(numV-n (interp (pre-process
-;                 (with (binding (quote apply)
-;                             (first arg-exprs   (fun (quote (f x y)) (app (id (quote f)) (list (id (quote x)) (id (quote y))))))
-;                       (app (id (quote apply))
-;                            (list (fun (quote (a b)) (binop + (id (quote a)) (id (quote b))))
-;                                  (num 3) 
-;                                  (num 4)))))))
-;
-;(run '(with (apply (fun (f x y) (f x y)))
-;      (apply (fun (a b) (+ a b))
-;             3
-;             4)))
-;
-;(numV-n (interp (pre-process (with
-;                              (binding 'apply (fun '(f x y)
-;                                                   (app (id 'f) (list (id 'x) (id 'y)))))
-;                              (app (id 'apply) (list (fun '(a b) (binop + (id 'a) (id 'b))) (num 3) (num 4)))))))
-;
-;(run '{with {apply {fun {f x y}
-;                  {f x y}}}
-;      {apply {fun {a b} {+ a b}}
-;             3 4}})
-
-;(run '(+ ((fun (x y) (- x y)) 4 3)
-;         ((fun (x y) (* x y)) 2 3)))
+              [else (error 'interp "interpretor error: ~s" expr )]))]
+    (strict (helper expr (mtEnv)))))
 
 ;; testing num
 (test (run '3) (numV 3))
@@ -377,7 +361,7 @@
 (test (interp (if0 (binop + (num 1) (num 2)) (num 1) (num 2))) (numV 2))
 
 (test (interp (fun (list 'x) (id 'x))) (closureV 'x (id 'x) (mtEnv)))
-(test (interp (fun empty (id 'x))) (thunkV (id 'x) (mtEnv)))
+
 
 
 
