@@ -176,7 +176,7 @@
 (test/exn (parse '{hello 1 2}) "")
 (test/exn (parse '{"abc"}) "")
 (test/exn (parse '{1 2 3}) "")
-
+ definition for lookup, we’d have a full interpreter. So here’s one:
 ; binop with fewer or more than 2 arguments
 (test/exn (parse '{+}) "")
 (test/exn (parse '{+ 1}) "")
@@ -270,6 +270,22 @@
                 (list (fun '(x) (binop + (id 'x) (num 2)))))
            (list (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))))
 
+;; lookup : symbol Env -> CFWAE-Value
+;; produces the CFWAE-Value bound to the given symbol in the given enviroment
+;; produces an error if it does not exist
+
+(define (lookup id env)
+  (type-case Env env
+    [mtEnv () (error "unbound identifier, ~s!" id)]
+    [anEnv (name value rest-env) 
+           (if (symbol=? id name)
+               value
+               (lookup id rest-env))]))
+
+(test/exn (lookup 'x (mtEnv)) "")
+(test (lookup 'x (anEnv 'x (numV 5) (mtEnv))) (numV 5))
+(test (lookup 'x (anEnv 'y (numV 5) (anEnv 'x (numV 0) (mtEnv)))) (numV 0))
+
 
 ;; interp : CFWAE -> CFWAE-Value
 ;; This procedure interprets the given CFWAE and produces a result 
@@ -280,16 +296,23 @@
             (type-case CFWAE expr
               [num (n) (numV n)]
               [binop (op lhs rhs) (numV (op (numV-n (helper lhs env))
-                                            (numV-n (helper rhs env))))]
-              [id (id) (numV 0) ]
-              [with (bind body-expr) (numV 0)]
+                                            (numV-n (helper rhs env))))] ;; check for numbers?
+              [id (id) (lookup id env)]
               [if0 (cond-expr then-expr else-expr)
                    (if (= 0 (numV-n (helper cond-expr env)))
                        ;;(if (and (numV? (interp cond-expr)) (= 0 (numV-n (interp cond-expr))));; Maybe not required
                        (helper then-expr env)
                        (helper else-expr env))]
-              [fun (args body-expr) (numV 0)]
-              [app (fun-expr arg-exprs) (numV 0)]))]
+              [fun (args body-expr)
+                   (if (empty? args)
+                       (thunkV body-expr env)
+                       (closureV (first args) body-expr env)]  ;; what if there are no args 
+              [app (fun-expr arg-exprs)
+                   (local [(define fun-val (helper fun-expr env))]
+                     (helper (closureV-body fun-val)
+                             (anEnv (first arg-exprs) (closureV-env fun-val))))]
+              [else (error "interpretor error")]))]
+    
     (helper expr (mtEnv))))
 
 ;; testing num
@@ -303,6 +326,8 @@
 (test (interp (if0 (num 0) (binop + (num 1) (num 2)) (binop + (num 3) (num 4)))) (numV 3))
 (test (interp (if0 (binop + (num 1) (num 2)) (num 1) (num 2))) (numV 2))
 
+(test (interp (fun (list 'x) (id 'x))) (closureV 'x (id 'x) (mtEnv)))
+(test (interp (fun empty (id 'x))) (thunkV (id 'x) (mtEnv)))
 
 ;; run : sexp -> CFWAE-Value
 ;; Consumes an sexp and passes it through parsing, pre-processing,
