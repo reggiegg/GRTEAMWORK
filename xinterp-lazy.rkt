@@ -119,7 +119,7 @@
           (parse then-expr)
           (parse else-expr))]
     [(list 'fun ids body-expr)
-     (if (and (andmap valid-identifier? ids));; (not (empty? ids)))
+     (if (and (andmap valid-identifier? ids)) ;(not (empty? ids)))
          (fun ids (parse body-expr))
          (error 'parse "invalid function ids or no ids in: ~s" sexp))]
     [(list fun-expr arg-exprs ...)
@@ -318,9 +318,9 @@
                                      (numV-n helped-rhs)))
                            (error "trying to perform a binary operation on non-numeric values")))]
               [if0 (cond-expr then-expr else-expr)
-                   (local [(define cond-val (helper cond-expr env))]
+                   (local [(define cond-val (strict (helper cond-expr env)))]
                      (if (numV? cond-val)
-                         (if (= 0 (numV-n (strict (helper cond-expr env))))
+                         (if (= 0 (numV-n cond-val))
                              (helper then-expr env)
                              (helper else-expr env))
                          (error "non-numeric condition value")))]
