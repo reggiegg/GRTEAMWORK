@@ -311,8 +311,8 @@
               [num (n) (numV n)]
               [id (id) (lookup id env)]
               [binop (op lhs rhs)
-                     (local [(define helped-lhs (helper lhs env))
-                             (define helped-rhs (helper rhs env))]
+                     (local [(define helped-lhs (strict (helper lhs env)))
+                             (define helped-rhs (strict (helper rhs env)))]
                        (if (and (numV? helped-lhs) (numV? helped-rhs))
                            (numV (op (numV-n helped-lhs)
                                      (numV-n helped-rhs)))
