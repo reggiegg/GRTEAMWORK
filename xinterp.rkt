@@ -29,7 +29,7 @@
 ;; div : number number -> number or error
 ;; divides first number by the second unless second is 0 where it throws an error
 (define (div l r)
-  (if (= r 0)
+  (if (= l 0)
       (error 'div "divide by zero error.")
       (/ l r)))
 
