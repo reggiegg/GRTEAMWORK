@@ -28,14 +28,14 @@
 
 ;; div : number number -> number or error
 ;; divides first number by the second unless second is 0 where it throws an error
-(define (div r l)
-  (if (= l 0)
+(define (div l r)
+  (if (= r 0)
       (error 'div "divide by zero error.")
       (/ l r)))
 
 ;; regular divisions
 (test (div 2 2) 1)
-(test (div 2 4) 2)
+(test (div 4 2) 2)
 
 ;; divide by zero
 (test/exn (div 3 0) "")
@@ -204,7 +204,7 @@
     [num (n) expr]
     [id (id) expr]
     [binop (op lhs rhs)
-           (binop op                  
+           (binop op
                   (pre-process rhs)
                   (pre-process lhs))]
     [with (bind body-expr)
@@ -358,6 +358,7 @@
 
 ;; testing binop
 (test (run '(+ 3 4)) (numV 7))
+(test (run '{/ 10 5}) (numV 2))
 
 (test/exn (run '(3 4)) "")
 (test (run '(with (x (+ 3 4)) x)) (numV 7))
