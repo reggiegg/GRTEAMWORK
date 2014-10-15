@@ -29,7 +29,7 @@
 ;; div : number number -> number or error
 ;; divides first number by the second unless second is 0 where it throws an error
 (define (div l r)
-  (if (= l 0)
+  (if (= r 0)
       (error 'div "divide by zero error.")
       (/ l r)))
 
@@ -205,8 +205,8 @@
     [id (id) expr]
     [binop (op lhs rhs)
            (binop op                  
-                  (pre-process rhs)
-                  (pre-process lhs))]
+                  (pre-process lhs)
+                  (pre-process rhs))]
     [with (bind body-expr)
           (app (fun (list (binding-name bind))
                     (pre-process body-expr))
@@ -232,7 +232,7 @@
 
 (test (pre-process (parse 1)) (num 1))
 (test (pre-process (parse 'x)) (id 'x))
-(test (pre-process (parse '{+ 3 4})) (binop + (num 4) (num 3)))
+(test (pre-process (parse '{+ 3 4})) (binop + (num 3) (num 4)))
 
 (test (pre-process (parse '{if0 0 1 2})) (if0 (num 0) (num 1) (num 2)))
 
