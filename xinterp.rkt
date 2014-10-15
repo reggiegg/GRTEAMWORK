@@ -286,6 +286,11 @@
 (test (lookup 'x (anEnv 'x (numV 5) (mtEnv))) (numV 5))
 (test (lookup 'x (anEnv 'y (numV 5) (anEnv 'x (numV 0) (mtEnv)))) (numV 0))
 
+;; run : sexp -> CFWAE-Value
+;; Consumes an sexp and passes it through parsing, pre-processing,
+;; and then interpretation to produce a result.
+(define (run sexp)
+  (interp (pre-process (parse sexp))))
 
 ;; interp : CFWAE -> CFWAE-Value
 ;; This procedure interprets the given CFWAE and produces a result 
@@ -306,11 +311,12 @@
               [fun (args body-expr)
                    (if (empty? args)
                        (thunkV body-expr env)
-                       (closureV (first args) body-expr env))]  ;; what if there are no args 
+                       (closureV (first args) body-expr env))]
               [app (fun-expr arg-exprs)
                    (local [(define fun-val (helper fun-expr env))]
                      (type-case CFWAE-Value fun-val
-                       [thunkV (body thunk-env) (numV 0)]
+                       [thunkV (body thunk-env) (helper body
+                                                        thunk-env)]
                        [closureV (param body closure-env)
                                  (helper body
                                          (anEnv param
@@ -322,10 +328,14 @@
     (helper expr (mtEnv))))
 
 ;; testing num
-(test (interp (num 3)) (numV 3))
+(test (run '3) (numV 3))
 
 ;; testing binop
-(test (interp (binop + (num 3) (num 4))) (numV 7))
+(test (run '(+ 3 4)) (numV 7))
+
+(test/exn (run '(3 4)) "")
+(test (run '(with (x (+ 3 4)) x)) (numV 7))
+(test (run '(with (add (fun (x y) (+ x y))) (add 3 4))) (numV 7))
 
 (test (interp (if0 (num 0) (num 1) (num 2))) (numV 1))
 ;(test (interp (if0 (thunkV 'x) (num 1) (num 2))) (numV 2)) <-- Thunks? Closures? 
@@ -335,11 +345,7 @@
 (test (interp (fun (list 'x) (id 'x))) (closureV 'x (id 'x) (mtEnv)))
 (test (interp (fun empty (id 'x))) (thunkV (id 'x) (mtEnv)))
 
-;; run : sexp -> CFWAE-Value
-;; Consumes an sexp and passes it through parsing, pre-processing,
-;; and then interpretation to produce a result.
-(define (run sexp)
-  (interp (pre-process (parse sexp))))
+
 
 
 ;; Possibly useful additional functions:
