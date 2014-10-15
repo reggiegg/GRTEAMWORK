@@ -306,11 +306,17 @@
               [fun (args body-expr)
                    (if (empty? args)
                        (thunkV body-expr env)
-                       (closureV (first args) body-expr env)]  ;; what if there are no args 
+                       (closureV (first args) body-expr env))]  ;; what if there are no args 
               [app (fun-expr arg-exprs)
                    (local [(define fun-val (helper fun-expr env))]
-                     (helper (closureV-body fun-val)
-                             (anEnv (first arg-exprs) (closureV-env fun-val))))]
+                     (type-case CFWAE-Value fun-val
+                       [thunkV (body thunk-env) (numV 0)]
+                       [closureV (param body closure-env)
+                                 (helper body
+                                         (anEnv param
+                                                (helper (first arg-exprs) env)
+                                                closure-env))]
+                       [numV (n) (error "invalid function expression")]))]
               [else (error "interpretor error")]))]
     
     (helper expr (mtEnv))))
