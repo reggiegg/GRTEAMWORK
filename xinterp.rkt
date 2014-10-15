@@ -204,9 +204,9 @@
     [num (n) expr]
     [id (id) expr]
     [binop (op lhs rhs)
-           (binop op
-                  (pre-process lhs)
-                  (pre-process rhs))]
+           (binop op                  
+                  (pre-process rhs)
+                  (pre-process lhs))]
     [with (bind body-expr)
           (app (fun (list (binding-name bind))
                     (pre-process body-expr))
@@ -232,7 +232,7 @@
 
 (test (pre-process (parse 1)) (num 1))
 (test (pre-process (parse 'x)) (id 'x))
-(test (pre-process (parse '{+ 3 4})) (binop + (num 3) (num 4)))
+(test (pre-process (parse '{+ 3 4})) (binop + (num 4) (num 3)))
 
 (test (pre-process (parse '{if0 0 1 2})) (if0 (num 0) (num 1) (num 2)))
 
@@ -258,7 +258,7 @@
            (list (num 0))))
 
 (test (pre-process (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))
-      (app (fun '(x) (binop + (id 'x) (num 2))) (list (num 1))))
+      (app (fun '(x) (binop + (num 2) (id 'x))) (list (num 1))))
 #;
 (test (pre-process 
        (app (fun '(x y z) (if0 (id 'x) (id 'y) (id 'z)))
@@ -330,23 +330,26 @@
                                              (anEnv param
                                                     (helper (first arg-exprs) env)
                                                     closure-env)))]
-                       [numV (n) (error "invalid function expression")]))]
+                       [numV (n) (error 'interp "invalid function expression: ~s" n)]))]
               [else (error "interpretor error")]))]
     
     (helper expr (mtEnv))))
 
-(numV-n (interp (pre-process
-                 (with (binding (quote apply)
-                                (fun (quote (f x y)) (app (id (quote f)) (list (id (quote x)) (id (quote y))))))
-                       (app (id (quote apply))
-                            (list (fun (quote (a b)) (binop + (id (quote a)) (id (quote b))))
-                                  (num 3) 
-                                  (num 4)))))))
+;(numV-n (interp (pre-process
+;                 (with (binding (quote apply)
+;                                (fun (quote (f x y)) (app (id (quote f)) (list (id (quote x)) (id (quote y))))))
+;                       (app (id (quote apply))
+;                            (list (fun (quote (a b)) (binop + (id (quote a)) (id (quote b))))
+;                                  (num 3) 
+;                                  (num 4)))))))
+;
+;(run '(with (apply (fun (f x y) (f x y)))
+;      (apply (fun (a b) (+ a b))
+;             3
+;             4)))
 
-(run '(with (apply (fun (f x y) (f x y)))
-      (apply (fun (a b) (+ a b))
-             3
-             4)))
+(run '(+ ((fun (x y) (- x y)) 4 3)
+         ((fun (x y) (* x y)) 2 3)))
 
 ;; testing num
 (test (run '3) (numV 3))
@@ -399,21 +402,21 @@
               [app (f args) (app (ffold f) (map ffold args))])])
     (ffold expr)))
 
-;; Example: 
-;; swap-op-args : CFWAE -> CFWAE
-;; Consumes a program and generates the corresponding program in which
-;; each instance of a binop has had its lhs and rhs swapped.
-;(define (swap-op-args program)
-;  (CFWAE-pre-fold (lambda (exp)
-;                    (type-case CFWAE exp
-;                               [binop (op lhs rhs) (binop op rhs lhs)]
-;                               [else exp]))
-;                  program))
-;
-;(test (swap-op-args (parse '{+ 1 2})) (parse '{+ 2 1}))
-;(test (swap-op-args (parse '{+ 3 {- {* 1 2} {/ 3 4}}}))
-;      (parse '{+ {- {/ 4 3} {* 2 1}} 3}))
-;(test (swap-op-args (parse '{fun {x} {+ x {if0 0 {+ 1 2} 3}}}))
-;      (parse '{fun {x} {+ {if0 0 {+ 2 1} 3} x}}))
+
+; swap-op-args : CFWAE -> CFWAE
+; Consumes a program and generates the corresponding program in which
+; each instance of a binop has had its lhs and rhs swapped.
+(define (swap-op-args program)
+  (CFWAE-pre-fold (lambda (exp)
+                    (type-case CFWAE exp
+                               [binop (op lhs rhs) (binop op rhs lhs)]
+                               [else exp]))
+                  program))
+
+(test (swap-op-args (parse '{+ 1 2})) (parse '{+ 2 1}))
+(test (swap-op-args (parse '{+ 3 {- {* 1 2} {/ 3 4}}}))
+      (parse '{+ {- {/ 4 3} {* 2 1}} 3}))
+(test (swap-op-args (parse '{fun {x} {+ x {if0 0 {+ 1 2} 3}}}))
+      (parse '{fun {x} {+ {if0 0 {+ 2 1} 3} x}}))
 
 
