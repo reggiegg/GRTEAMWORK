@@ -28,14 +28,14 @@
 
 ;; div : number number -> number or error
 ;; divides first number by the second unless second is 0 where it throws an error
-(define (div l r)
+(define (div r l)
   (if (= l 0)
       (error 'div "divide by zero error.")
       (/ l r)))
 
 ;; regular divisions
 (test (div 2 2) 1)
-(test (div 4 2) 2)
+(test (div 2 4) 2)
 
 ;; divide by zero
 (test/exn (div 3 0) "")
@@ -301,15 +301,17 @@
             (type-case CFWAE expr
               [num (n) (numV n)]
               [binop (op lhs rhs)
-                     (if (and (numV? (helper lhs env))(numV? (helper rhs env)))
-                         (numV (op (numV-n (helper lhs env))
-                                   (numV-n (helper rhs env))))
-                         (error "trying to perform a binary operation on non-numeric values"))] ;; check for numbers?
+                     (local [(define helped-lhs (helper lhs env))
+                             (define helped-rhs (helper rhs env))]
+                       (if (and (numV? helped-lhs) (numV? helped-rhs))
+                           (numV (op (numV-n helped-lhs)
+                                     (numV-n helped-rhs)))
+                           (error "trying to perform a binary operation on non-numeric values")))] 
               [id (id) (lookup id env)]
               [if0 (cond-expr then-expr else-expr)
                    (local [(define cond-val (helper cond-expr env))]
                      (if (numV? cond-val)
-                         (if (= 0 (numV-n (helper cond-expr env)));; Maybe not required
+                         (if (= 0 (numV-n (helper cond-expr env)))
                              (helper then-expr env)
                              (helper else-expr env))
                          (error "non-numeric condition value")))]
