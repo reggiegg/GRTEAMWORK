@@ -226,7 +226,7 @@
            [(= 1 (length arg-exprs)) (app (pre-process fun-expr) 
                                           (list (pre-process (first arg-exprs))))]
            [else (app (pre-process (app fun-expr (rest arg-exprs)))
-                      (list (first arg-exprs)))])]))
+                      (list (pre-process (first arg-exprs))))])]))
 
 
 
@@ -304,12 +304,11 @@
                      (if (and (numV? (helper lhs env))(numV? (helper rhs env)))
                          (numV (op (numV-n (helper lhs env))
                                    (numV-n (helper rhs env))))
-                         (error "trying to perform a binary operation on non-numeric values"))] ;; check for numbers?
-              [id (id) (lookup id env)]
+                         (error "trying to perform a binary operation on non-numeric values"))]
               [if0 (cond-expr then-expr else-expr)
                    (local [(define cond-val (helper cond-expr env))]
                      (if (numV? cond-val)
-                         (if (= 0 (numV-n (helper cond-expr env)));; Maybe not required
+                         (if (= 0 (numV-n (helper cond-expr env)))
                              (helper then-expr env)
                              (helper else-expr env))
                          (error "non-numeric condition value")))]
@@ -332,12 +331,11 @@
                                                     closure-env)))]
                        [numV (n) (error 'interp "invalid function expression: ~s" n)]))]
               [else (error "interpretor error")]))]
-    
     (helper expr (mtEnv))))
 
 ;(numV-n (interp (pre-process
 ;                 (with (binding (quote apply)
-;                                (fun (quote (f x y)) (app (id (quote f)) (list (id (quote x)) (id (quote y))))))
+;                             (first arg-exprs   (fun (quote (f x y)) (app (id (quote f)) (list (id (quote x)) (id (quote y))))))
 ;                       (app (id (quote apply))
 ;                            (list (fun (quote (a b)) (binop + (id (quote a)) (id (quote b))))
 ;                                  (num 3) 
@@ -347,16 +345,16 @@
 ;      (apply (fun (a b) (+ a b))
 ;             3
 ;             4)))
-
-(numV-n (interp (pre-process (with
-                              (binding 'apply (fun '(f x y)
-                                                   (app (id 'f) (list (id 'x) (id 'y)))))
-                              (app (id 'apply) (list (fun '(a b) (binop + (id 'a) (id 'b))) (num 3) (num 4)))))))
-
-(run '{with {apply {fun {f x y}
-                  {f x y}}}
-      {apply {fun {a b} {+ a b}}
-             3 4}})
+;
+;(numV-n (interp (pre-process (with
+;                              (binding 'apply (fun '(f x y)
+;                                                   (app (id 'f) (list (id 'x) (id 'y)))))
+;                              (app (id 'apply) (list (fun '(a b) (binop + (id 'a) (id 'b))) (num 3) (num 4)))))))
+;
+;(run '{with {apply {fun {f x y}
+;                  {f x y}}}
+;      {apply {fun {a b} {+ a b}}
+;             3 4}})
 
 ;(run '(+ ((fun (x y) (- x y)) 4 3)
 ;         ((fun (x y) (* x y)) 2 3)))
