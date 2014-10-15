@@ -300,12 +300,14 @@
   (local [(define (helper expr env)
             (type-case CFWAE expr
               [num (n) (numV n)]
-              [binop (op lhs rhs) (numV (op (numV-n (helper lhs env))
-                                            (numV-n (helper rhs env))))] ;; check for numbers?
+              [binop (op lhs rhs)
+                     (if (and (numV? (helper lhs env))(numV? (helper rhs env)))
+                         (numV (op (numV-n (helper lhs env))
+                                   (numV-n (helper rhs env))))
+                         (error "trying to perform a binary operation on non-numeric values"))] ;; check for numbers?
               [id (id) (lookup id env)]
               [if0 (cond-expr then-expr else-expr)
-                   (if (= 0 (numV-n (helper cond-expr env)))
-                       ;;(if (and (numV? (interp cond-expr)) (= 0 (numV-n (interp cond-expr))));; Maybe not required
+                   (if (and (numV? (helper cond-expr env)) (= 0 (numV-n (helper cond-expr env))));; Maybe not required
                        (helper then-expr env)
                        (helper else-expr env))]
               [fun (args body-expr)
@@ -315,13 +317,16 @@
               [app (fun-expr arg-exprs)
                    (local [(define fun-val (helper fun-expr env))]
                      (type-case CFWAE-Value fun-val
-                       [thunkV (body thunk-env) (helper body
-                                                        thunk-env)]
+                       [thunkV (body thunk-env) (if (empty? arg-exprs)
+                                                    (helper body thunk-env)
+                                                    (error "too many arguments"))]
                        [closureV (param body closure-env)
-                                 (helper body
-                                         (anEnv param
-                                                (helper (first arg-exprs) env)
-                                                closure-env))]
+                                 (if (empty? arg-exprs)
+                                     (error "too few arguments")
+                                     (helper body
+                                             (anEnv param
+                                                    (helper (first arg-exprs) env)
+                                                    closure-env)))]
                        [numV (n) (error "invalid function expression")]))]
               [else (error "interpretor error")]))]
     
