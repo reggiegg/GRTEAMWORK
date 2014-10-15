@@ -300,6 +300,7 @@
   (local [(define (helper expr env)
             (type-case CFWAE expr
               [num (n) (numV n)]
+              [id (id) (lookup id env)]
               [binop (op lhs rhs)
                      (if (and (numV? (helper lhs env))(numV? (helper rhs env)))
                          (numV (op (numV-n (helper lhs env))
@@ -330,7 +331,7 @@
                                                     (helper (first arg-exprs) env)
                                                     closure-env)))]
                        [numV (n) (error 'interp "invalid function expression: ~s" n)]))]
-              [else (error "interpretor error")]))]
+              [else (error 'interp "interpretor error: ~s" expr )]))]
     (helper expr (mtEnv))))
 
 ;(numV-n (interp (pre-process
