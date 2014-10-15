@@ -126,23 +126,6 @@
      (app (parse fun-expr) (map parse arg-exprs))]
     [else (error 'parse "unable to parse the s-expression ~s" sexp)]))
 
-(test (parse '{if0 0 1 2}) (if0 (num 0) (num 1) (num 2)))
-(test (parse '{if0 {/ 1 2} 1 2}) (if0 (binop div (num 1) (num 2)) (num 1) (num 2)))
-(test (parse '{if0 0 {if0 0 1 2} {if0 2 1 0}}) (if0 (num 0) 
-                                                    (if0 (num 0) (num 1) (num 2))
-                                                    (if0 (num 2) (num 1) (num 0))))
-
-(test (parse '{fun (x) 0}) (fun '(x) (num 0)))
-(test (parse '{fun (x y) 0}) (fun '(x y) (num 0)))
-(test (parse '{fun (x) (+ 1 2)}) (fun '(x) (binop + (num 1) (num 2))))
-
-(test (parse '{some-fun 3}) (app (id 'some-fun) (list (num 3))))
-(test (parse '{some-fun 1 2 3}) (app (id 'some-fun) (list (num 1) (num 2) (num 3))))
-(test (parse '{some-fun 1 {with {x 10} x}}) (app (id 'some-fun) (list (num 1) (with (binding 'x (num 10)) (id 'x)))))
-
-(test (parse '{x {with {x {fun {y} 0}} x} 10}) (app (id 'x) (list (with (binding 'x (fun '(y) (num 0))) (id 'x)) (num 10))))
-
-#|
 ;; Symbols
 (test (parse 'x) (id 'x))
 (test (parse 'ys) (id 'ys))
@@ -174,15 +157,9 @@
 (test/exn (parse '-) "")
 (test/exn (parse 'with) "")
 
-; lists that start with things besides +, -, with or with*, esp. numbers
-(test/exn (parse '{hello 1 2}) "")
-(test/exn (parse '{"abc"}) "")
-(test/exn (parse '{1 2 3}) "")
- definition for lookup, we’d have a full interpreter. So here’s one:
 ; binop with fewer or more than 2 arguments
 (test/exn (parse '{+}) "")
 (test/exn (parse '{+ 1}) "")
-(test/exn (parse '{+ 1 2 3}) "")
 
 ; ill-structured with
 (test/exn (parse '{with}) "")
@@ -193,8 +170,29 @@
 (test/exn (parse '{with {x 1 2} 3}) "")
 (test/exn (parse '{with {+ 1} 2}) "")
 
+; if0
+(test (parse '{if0 0 1 2}) (if0 (num 0) (num 1) (num 2)))
+(test (parse '{if0 {/ 1 2} 1 2}) (if0 (binop div (num 1) (num 2)) (num 1) (num 2)))
+(test (parse '{if0 0 {if0 0 1 2} {if0 2 1 0}}) (if0 (num 0) 
+                                                    (if0 (num 0) (num 1) (num 2))
+                                                    (if0 (num 2) (num 1) (num 0))))
+;; ill-structured if0
+(test/exn (parse '{if0 0 1}) "")
 
-|#
+;; fun
+(test (parse '{fun () 0}) (fun '() (num 0)))
+(test (parse '{fun (x) 0}) (fun '(x) (num 0)))
+(test (parse '{fun (x y) 0}) (fun '(x y) (num 0)))
+(test (parse '{fun (x) (+ 1 2)}) (fun '(x) (binop + (num 1) (num 2))))
+
+;; function application
+(test (parse '{some-fun 3}) (app (id 'some-fun) (list (num 3))))
+(test (parse '{some-fun 1 2 3}) (app (id 'some-fun) (list (num 1) (num 2) (num 3))))
+(test (parse '{some-fun 1 {with {x 10} x}}) (app (id 'some-fun) (list (num 1) (with (binding 'x (num 10)) (id 'x)))))
+
+;; complicated case
+(test (parse '{x {with {x {fun {y} 0}} x} 10}) (app (id 'x) (list (with (binding 'x (fun '(y) (num 0))) (id 'x)) (num 10))))
+
 
 ;; pre-process : CFWAE -> CFWAE
 ;; Consumes a CFWAE and constructs a corresponding CFWAE without
@@ -232,19 +230,27 @@
 
 
 
+
+;; basic cases
 (test (pre-process (parse 1)) (num 1))
 (test (pre-process (parse 'x)) (id 'x))
 (test (pre-process (parse '{+ 3 4})) (binop + (num 3) (num 4)))
-
 (test (pre-process (parse '{if0 0 1 2})) (if0 (num 0) (num 1) (num 2)))
 
+;; with case
+(test (pre-process (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))
+      (app (fun '(x) (binop + (id 'x) (num 2))) (list (num 1))))
+
+;; function cases
 (test (pre-process (parse '{fun (x) 0})) (fun '(x) (num 0)))
 (test (pre-process (parse '{fun (x y) 0})) (fun '(y) (fun '(x) (num 0))))
 
+;; application cases
 (test (pre-process (app (fun '() (num 0)) '()))
       (app (fun '() (num 0)) '()))
 (test (pre-process (app (fun '(x) (num 0)) (list (num 1))))
       (app (fun '(x) (num 0)) (list (num 1))))
+
 ; a test to show that we don't care if the fun and the args don't agree
 (test (pre-process (app (fun '() (num 0)) (list (num 1))))
       (app (fun '() (num 0)) (list (num 1))))
@@ -259,18 +265,8 @@
                 (list (num 1)))
            (list (num 0))))
 
-(test (pre-process (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))
-      (app (fun '(x) (binop + (id 'x) (num 2))) (list (num 1))))
-#;
-(test (pre-process 
-       (app (fun '(x y z) (if0 (id 'x) (id 'y) (id 'z)))
-            (list (with (binding 'x (num 1)) (binop + (id 'x) (num 2)))
-                  (fun '(x) (binop + (id 'x) (num 2)))
-                  (num 14))))
-      (app (app (app (fun '(x) (fun '(y) (fun '(z) (if0 (id 'x) (id 'y) (id 'z)))))
-                     (list (num 14)))
-                (list (fun '(x) (binop + (id 'x) (num 2)))))
-           (list (with (binding 'x (num 1)) (binop + (id 'x) (num 2))))))
+
+
 
 ;; lookup : symbol Env -> CFWAE-Value
 ;; produces the CFWAE-Value bound to the given symbol in the given enviroment
@@ -345,24 +341,29 @@
               [else (error 'interp "interpretor error: ~s" expr )]))]
     (strict (helper expr (mtEnv)))))
 
-;; testing num
+;; num
 (test (run '3) (numV 3))
 
-;; testing binop
+;; binop
 (test (run '(+ 3 4)) (numV 7))
 
+;; ill formed program
 (test/exn (run '(3 4)) "")
+
+;; with
 (test (run '(with (x (+ 3 4)) x)) (numV 7))
 (test (run '(with (add (fun (x y) (+ x y))) (add 3 4))) (numV 7))
 
+;; if0
 (test (interp (if0 (num 0) (num 1) (num 2))) (numV 1))
-;(test (interp (if0 (thunkV 'x) (num 1) (num 2))) (numV 2)) <-- Thunks? Closures? 
 (test (interp (if0 (num 0) (binop + (num 1) (num 2)) (binop + (num 3) (num 4)))) (numV 3))
 (test (interp (if0 (binop + (num 1) (num 2)) (num 1) (num 2))) (numV 2))
 
+;; a bit more interesting
 (test (interp (fun (list 'x) (id 'x))) (closureV 'x (id 'x) (mtEnv)))
 
-
+;; test to demonstrate that we are evaluating eagerly
+(test (run '(with (x y) 4)) (numV 4))
 
 
 
@@ -414,3 +415,4 @@
       (parse '{fun {x} {+ {if0 0 {+ 2 1} 3} x}}))
 
 
+(failed-tests)

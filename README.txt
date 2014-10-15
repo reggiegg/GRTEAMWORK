@@ -27,7 +27,7 @@ Signed: Reginald Gillett Graham St-Laurent
 
 Plese fill in each of the following:
 
-Approximate hours on the projet: 12
+Approximate hours on the projet: 13
 
 Acknowledgment of assistance (per the collab policy!): None
 
@@ -86,13 +86,13 @@ fun version using the semantics of with* from the last assignment.
 Question 3: What's something cool, interesting, frustrating, or
 tangentially relevant that this assignment made you think about?
 
-We thought about how to create closures in a stack based language
-such as forth. How would we implement that? Is there even an equivalent
-to lazy-evals?
+1. We thought about how to create closures in a stack-based language
+such as Forth. How would we implement that? Is there even an equivalent
+to lazy-evals that is possible in this type of language?
 
 
 
 
 
-If you say strict over and over it loses all meaning. Strict.
+2. If you say strict over and over it loses all meaning. Strict.
 Striiiicct. Strict. Strict.
