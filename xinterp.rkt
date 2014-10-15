@@ -307,9 +307,12 @@
                          (error "trying to perform a binary operation on non-numeric values"))] ;; check for numbers?
               [id (id) (lookup id env)]
               [if0 (cond-expr then-expr else-expr)
-                   (if (and (numV? (helper cond-expr env)) (= 0 (numV-n (helper cond-expr env))));; Maybe not required
-                       (helper then-expr env)
-                       (helper else-expr env))]
+                   (local [(define cond-val (helper cond-expr env))]
+                     (if (numV? cond-val)
+                         (if (= 0 (numV-n (helper cond-expr env)));; Maybe not required
+                             (helper then-expr env)
+                             (helper else-expr env))
+                         (error "non-numeric condition value")))]
               [fun (args body-expr)
                    (if (empty? args)
                        (thunkV body-expr env)
@@ -331,6 +334,19 @@
               [else (error "interpretor error")]))]
     
     (helper expr (mtEnv))))
+
+(numV-n (interp (pre-process
+                 (with (binding (quote apply)
+                                (fun (quote (f x y)) (app (id (quote f)) (list (id (quote x)) (id (quote y))))))
+                       (app (id (quote apply))
+                            (list (fun (quote (a b)) (binop + (id (quote a)) (id (quote b))))
+                                  (num 3) 
+                                  (num 4)))))))
+
+(run '(with (apply (fun (f x y) (f x y)))
+      (apply (fun (a b) (+ a b))
+             3
+             4)))
 
 ;; testing num
 (test (run '3) (numV 3))
